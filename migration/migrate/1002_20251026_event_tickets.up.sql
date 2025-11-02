@@ -1,0 +1,10 @@
+CREATE TABLE event.tickets (
+    id SERIAL PRIMARY KEY,
+    uuid CHAR(36) NOT NULL UNIQUE,
+    event_id INT NOT NULL,
+    price DECIMAL(10, 2) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    status VARCHAR(3) NOT NULL DEFAULT 'atv',
+    FOREIGN KEY (event_id) REFERENCES event.events(id) ON DELETE RESTRICT
+);

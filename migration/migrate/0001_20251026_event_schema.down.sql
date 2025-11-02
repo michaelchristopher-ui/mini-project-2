@@ -1,0 +1,1 @@
+DROP SCHEMA event RESTRICT;

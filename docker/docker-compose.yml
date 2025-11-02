@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://eventuser:eventpass@postgres:5432/eventdb
+      - PORT=3000
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ../:/app
+      - /app/node_modules
+    command: npm run dev
+
+  postgres:
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      POSTGRES_DB: eventdb
+      POSTGRES_USER: eventuser
+      POSTGRES_PASSWORD: eventpass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../migration/migrate:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U eventuser -d eventdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:

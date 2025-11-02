@@ -1,0 +1,35 @@
+{
+  "name": "eventwebsite",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "npm run build && node dist/adapter/rest/index.js",
+    "dev": "ts-node adapter/rest/index.ts",
+    "docker:build": "docker-compose -f docker/docker-compose.yml build",
+    "docker:up": "docker-compose -f docker/docker-compose.yml up -d",
+    "docker:down": "docker-compose -f docker/docker-compose.yml down",
+    "docker:logs": "docker-compose -f docker/docker-compose.yml logs -f app",
+    "docker:reset": "docker-compose -f docker/docker-compose.yml down -v && docker volume rm docker_postgres_data && npm run docker:up",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@types/dotenv": "^6.1.1",
+    "@types/express": "^5.0.4",
+    "@types/node": "^24.9.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.18.0",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0"
+  }
+}
