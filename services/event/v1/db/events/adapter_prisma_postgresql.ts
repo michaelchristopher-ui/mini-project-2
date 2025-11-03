@@ -415,38 +415,6 @@ export class PostgresRepository implements EventsRepo {
     }
   }
 
-  private async RestoreSeatsForTransaction(transactionId: number): Promise<void> {
-    try {
-      // Get the transaction and sum quantities of associated tickets
-      const transaction = await this.prisma.transaction.findUnique({
-        where: { id: transactionId },
-        include: {
-          ticket_transactions: true
-        }
-      });
-
-      if (!transaction) {
-        throw new Error('Transaction not found');
-      }
-
-      const seatCount = transaction.ticket_transactions.reduce((total: number, tt: any) => total + tt.quantity, 0);
-      
-      // Restore seats to the event
-      await this.prisma.event.update({
-        where: { id: transaction.event_id },
-        data: {
-          available_seats: {
-            increment: seatCount
-          }
-        }
-      });
-
-      console.log(`Restored ${seatCount} seats for transaction ${transactionId}`);
-    } catch (error) {
-      console.error('Error restoring seats for transaction:', error);
-      throw new Error(`Failed to restore seats: ${(error as any)?.message || 'Unknown error'}`);
-    }
-  }
 
   private async RestoreSeatsForTransactionByPrisma(prisma: any, transactionId: number): Promise<void> {
     try {

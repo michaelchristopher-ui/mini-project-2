@@ -242,6 +242,31 @@ export class PostgresUsersRepository implements UsersRepo {
     }
   }
 
+  async GetUserPointsSum(userId: number): Promise<number> {
+    try {
+      const now = new Date();
+      
+      // Get all points that are either not expired or have no expiry date
+      const result = await (this.prisma as any).points.aggregate({
+        where: {
+          user_id: userId,
+          OR: [
+            { expiry: null }, // No expiry date
+            { expiry: { gt: now } } // Expiry date is in the future
+          ]
+        },
+        _sum: {
+          points_count: true
+        }
+      });
+      
+      return result._sum.points_count || 0;
+    } catch (error) {
+      console.error('Detailed Prisma error in GetUserPointsSum:', error);
+      throw new Error(`Failed to get user points sum: ${(error as any)?.message || 'Unknown error'}`);
+    }
+  }
+
   async dispose(): Promise<void> {
     await this.prisma.$disconnect();
   }

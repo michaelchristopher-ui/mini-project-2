@@ -6,6 +6,7 @@ import express, { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { EventController } from '../../services/event/v1/controllers/EventController';
 import { UsersController } from '../../services/event/v1/controllers/UsersController';
+import { TransactionsController } from '../../services/event/v1/controllers/TransactionsController';
 import { PostgresRepository } from '../../services/event/v1/db/events/adapter_prisma_postgresql';
 import { PostgresUsersRepository } from '../../services/event/v1/db/users/adapter_prisma_postgresql';
 import { MigrationService } from '../../services/migration/MigrationService';
@@ -23,6 +24,7 @@ const eventsRepo = new PostgresRepository(prismaClient);
 const usersRepo = new PostgresUsersRepository(prismaClient);
 const eventController = new EventController(eventsRepo);
 const usersController = new UsersController(usersRepo);
+const transactionsController = new TransactionsController(eventsRepo);
 const migrationService = new MigrationService();
 const seedService = new SeedService();
 
@@ -63,19 +65,19 @@ app.get('/events/:uuid/transactions', (req: Request, res: Response) => {
 });
 
 app.post('/transactions', (req: Request, res: Response) => {
-    eventController.CreateTransaction(req, res);
+    transactionsController.CreateTransaction(req, res);
 });
 
 app.get('/transactions/:transactionUuid', (req: Request, res: Response) => {
-    eventController.GetTransactionByUuid(req, res);
+    transactionsController.GetTransactionByUuid(req, res);
 });
 
 app.patch('/transactions/:transactionUuid/status', (req: Request, res: Response) => {
-    eventController.UpdateTransactionStatus(req, res);
+    transactionsController.UpdateTransactionStatus(req, res);
 });
 
 app.get('/transactions/:transactionUuid/tickets', (req: Request, res: Response) => {
-    eventController.GetTicketsByTransaction(req, res);
+    transactionsController.GetTicketsByTransaction(req, res);
 });
 
 // Users endpoints
@@ -89,6 +91,11 @@ app.get('/users/:userId/points', (req: Request, res: Response) => {
 
 app.get('/users/:userId/coupons', (req: Request, res: Response) => {
     usersController.GetUserCoupons(req, res);
+});
+
+// Points sum endpoint (separate from detailed points list)
+app.get('/users/:userId/points/sum', (req: Request, res: Response) => {
+    usersController.GetUserPointsSum(req, res);
 });
 
 // Migration endpoints

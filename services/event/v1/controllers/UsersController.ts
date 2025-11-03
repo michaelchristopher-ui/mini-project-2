@@ -286,4 +286,60 @@ export class UsersController {
       });
     }
   }
+
+  async GetUserPointsSum(req: Request, res: Response): Promise<void> {
+    try {
+      const userIdStr = req.params.userId;
+      
+      if (!userIdStr) {
+        res.status(400).json({
+          success: false,
+          data: null,
+          message: 'User ID is required'
+        });
+        return;
+      }
+
+      const userId = parseInt(userIdStr, 10);
+      if (isNaN(userId)) {
+        res.status(400).json({
+          success: false,
+          data: null,
+          message: 'Invalid User ID format'
+        });
+        return;
+      }
+
+      // Check if user exists
+      const user = await this.usersRepo.GetUserById(userId);
+      if (!user) {
+        res.status(404).json({
+          success: false,
+          data: null,
+          message: 'User not found'
+        });
+        return;
+      }
+
+      // Get sum of non-expired points for the user
+      const pointsSum = await this.usersRepo.GetUserPointsSum(userId);
+      
+      res.status(200).json({
+        success: true,
+        data: {
+          user_id: userId,
+          username: user.username,
+          total_points: pointsSum
+        },
+        message: 'User points sum retrieved successfully'
+      });
+    } catch (error) {
+      console.error('Error in GetUserPointsSum:', error);
+      res.status(500).json({
+        success: false,
+        data: null,
+        message: 'Failed to retrieve user points sum'
+      });
+    }
+  }
 }
