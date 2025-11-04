@@ -361,6 +361,57 @@ export class PostgresRepository implements EventsRepo {
           throw new Error(`Insufficient seats available. Requested: ${seatCount}, Available: ${event.available_seats}`);
         }
 
+        // If user wants to use points, validate point availability
+        let userPointsSum = 0;
+        if (transactionData.points_to_use && transactionData.points_to_use > 0 && transactionData.created_by) {
+          const now = new Date();
+          
+          // Get current non-expired points for the user
+          const pointsResult = await (prisma as any).points.aggregate({
+            where: {
+              user_id: transactionData.created_by,
+              OR: [
+                { expiry: null }, // No expiry date
+                { expiry: { gt: now } } // Expiry date is in the future
+              ]
+            },
+            _sum: {
+              points_count: true
+            }
+          });
+          
+          userPointsSum = pointsResult._sum.points_count || 0;
+          
+          // Check if user has enough points
+          if (transactionData.points_to_use > userPointsSum) {
+            throw new Error(`Insufficient points available. Requested: ${transactionData.points_to_use}, Available: ${userPointsSum}`);
+          }
+        }
+
+        // Calculate total price for all tickets
+        let totalPrice = 0;
+        if (transactionData.ticket_ids && Object.keys(transactionData.ticket_ids).length > 0) {
+          const ticketIds = Object.keys(transactionData.ticket_ids).map(id => parseInt(id));
+          const tickets = await prisma.ticket.findMany({
+            where: {
+              id: { in: ticketIds },
+              event_id: transactionData.event_id
+            }
+          });
+
+          for (const ticket of tickets) {
+            const quantity = transactionData.ticket_ids[ticket.id] || 0;
+            totalPrice += ticket.price.toNumber() * quantity;
+          }
+        }
+
+        // Calculate remaining price after points and discount
+        const pointsValue = transactionData.points_to_use || 0;
+        const discountValue = transactionData.discount_value || 0;
+        const remainingPrice = Math.max(0, totalPrice - pointsValue - discountValue);
+
+        console.log(`Transaction pricing: Total=${totalPrice}, Points=${pointsValue}, Discount=${discountValue}, Remaining=${remainingPrice}`);
+
         // Reserve seats by reducing available_seats
         await prisma.event.update({
           where: { id: transactionData.event_id },
@@ -394,10 +445,32 @@ export class PostgresRepository implements EventsRepo {
           });
         }
 
-        return newTransaction;
+        // Deduct points if they were used
+        if (transactionData.points_to_use && transactionData.points_to_use > 0 && transactionData.created_by) {
+          // Add a negative points entry to deduct the used points
+          await (prisma as any).points.create({
+            data: {
+              user_id: transactionData.created_by,
+              points_count: -transactionData.points_to_use, // Negative to deduct
+              expiry: null, // Deductions don't expire
+              created_at: new Date(),
+              updated_at: new Date()
+            }
+          });
+
+          console.log(`Deducted ${transactionData.points_to_use} points from user ${transactionData.created_by}`);
+        }
+
+        return { 
+          ...newTransaction, 
+          total_price: totalPrice,
+          points_used: pointsValue,
+          discount_applied: discountValue,
+          remaining_price: remainingPrice
+        };
       });
 
-      // Convert to domain model
+      // Convert to domain model and include pricing information
       return {
         id: result.id,
         uuid: result.uuid,
@@ -406,8 +479,12 @@ export class PostgresRepository implements EventsRepo {
         created_at: result.created_at,
         created_by: result.created_by,
         confirmed_at: result.confirmed_at,
-        confirmed_by: result.confirmed_by
-      };
+        confirmed_by: result.confirmed_by,
+        total_price: result.total_price,
+        points_used: result.points_used,
+        discount_applied: result.discount_applied,
+        remaining_price: result.remaining_price
+      } as any;
     } catch (error) {
       console.error('Detailed Prisma error in CreateTransaction:', error);
       console.error('Error message:', (error as any)?.message || 'Unknown error');

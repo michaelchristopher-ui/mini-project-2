@@ -64,7 +64,7 @@ export class TransactionsController {
   async CreateTransaction(req: Request, res: Response): Promise<void> {
     try {
       // Validate request body
-      const { event_id, created_by, ticket_ids } = req.body;
+      const { event_id, created_by, ticket_ids, points_to_use, discount_value } = req.body;
 
       if (!event_id || typeof event_id !== 'number') {
         res.status(400).json({
@@ -114,10 +114,44 @@ export class TransactionsController {
         return;
       }
 
+      // Validate points_to_use if provided
+      if (points_to_use !== undefined) {
+        if (typeof points_to_use !== 'number' || points_to_use < 0) {
+          res.status(400).json({
+            success: false,
+            data: null,
+            message: 'points_to_use must be a non-negative number if provided'
+          });
+          return;
+        }
+
+        // If points are being used, created_by is required
+        if (!created_by) {
+          res.status(400).json({
+            success: false,
+            data: null,
+            message: 'created_by is required when using points'
+          });
+          return;
+        }
+      }
+
+      // Validate discount_value if provided
+      if (discount_value !== undefined && (typeof discount_value !== 'number' || discount_value < 0)) {
+        res.status(400).json({
+          success: false,
+          data: null,
+          message: 'discount_value must be a non-negative number if provided'
+        });
+        return;
+      }
+
       const transactionData: CreateTransactionRequest = {
         event_id,
         created_by,
-        ticket_ids
+        ticket_ids,
+        points_to_use,
+        discount_value
       };
 
       const newTransaction = await this.eventsRepo.CreateTransaction(transactionData);

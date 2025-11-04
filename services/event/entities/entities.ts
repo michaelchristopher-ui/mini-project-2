@@ -73,6 +73,11 @@ export type TransactionObject = {
   created_by: number | null;
   confirmed_at: Date | null;
   confirmed_by: number | null;
+  // Optional pricing information (only present on transaction creation)
+  total_price?: number;
+  points_used?: number;
+  discount_applied?: number;
+  remaining_price?: number;
 };
 
 export type TicketTransactionObject = {
@@ -85,6 +90,8 @@ export type CreateTransactionRequest = {
   event_id: number;
   created_by?: number;
   ticket_ids: { [ticketId: number]: number }; // Object mapping ticket ID to quantity
+  points_to_use?: number; // Optional points to use for payment
+  discount_value?: number; // Optional discount amount to apply
 };
 
 export type UpdateTransactionRequest = {
