@@ -26,12 +26,41 @@ class UsersController {
     }
     GetUserById(req, res) {
         return __awaiter(this, void 0, void 0, function* () {
-            // TODO: Implement GetUserById handler
-            res.status(501).json({
-                success: false,
-                data: null,
-                message: 'GetUserById not implemented yet'
-            });
+            try {
+                const userId = parseInt(req.params.id);
+                // Validate user ID parameter
+                if (isNaN(userId) || userId <= 0) {
+                    res.status(400).json({
+                        success: false,
+                        data: null,
+                        message: 'Invalid user ID. Must be a positive number.'
+                    });
+                    return;
+                }
+                // Get the user
+                const user = yield this.usersRepo.GetUserById(userId);
+                if (!user) {
+                    res.status(404).json({
+                        success: false,
+                        data: null,
+                        message: 'User not found'
+                    });
+                    return;
+                }
+                res.status(200).json({
+                    success: true,
+                    data: user,
+                    message: 'User retrieved successfully'
+                });
+            }
+            catch (error) {
+                console.error('Error in GetUserById:', error);
+                res.status(500).json({
+                    success: false,
+                    data: null,
+                    message: 'Failed to retrieve user'
+                });
+            }
         });
     }
     GetUserByUsername(req, res) {
@@ -47,13 +76,40 @@ class UsersController {
     CreateUser(req, res) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
-                const { username, profile_picture, role, referred_by_code } = req.body;
+                console.log('[UsersController.CreateUser] Incoming body:', req.body);
+                const { username, password, profile_picture, role, referred_by_code } = req.body;
                 // Validate required fields
                 if (!username || typeof username !== 'string' || username.trim() === '') {
                     res.status(400).json({
                         success: false,
                         data: null,
                         message: 'Username is required and must be a non-empty string'
+                    });
+                    return;
+                }
+                // Validate password
+                if (!password || typeof password !== 'string') {
+                    res.status(400).json({
+                        success: false,
+                        data: null,
+                        message: 'Password is required and must be a string'
+                    });
+                    return;
+                }
+                // Validate password strength
+                if (password.length < 8) {
+                    res.status(400).json({
+                        success: false,
+                        data: null,
+                        message: 'Password must be at least 8 characters long'
+                    });
+                    return;
+                }
+                if (password.length > 128) {
+                    res.status(400).json({
+                        success: false,
+                        data: null,
+                        message: 'Password cannot exceed 128 characters'
                     });
                     return;
                 }
@@ -120,11 +176,14 @@ class UsersController {
                 }
                 const userData = {
                     username: username.trim(),
+                    password: password,
                     profile_picture: (profile_picture === null || profile_picture === void 0 ? void 0 : profile_picture.trim()) || undefined,
                     role: role || 1, // Default to customer role if not provided
                     referred_by_code: (referred_by_code === null || referred_by_code === void 0 ? void 0 : referred_by_code.trim()) || undefined
                 };
+                console.log('[UsersController.CreateUser] Prepared userData:', userData);
                 const newUser = yield this.usersRepo.CreateUser(userData);
+                console.log('[UsersController.CreateUser] Created user id:', newUser.id);
                 // If there's a valid referral, credit points to the referring user and create welcome coupon for new user
                 if (referringUser) {
                     try {
@@ -156,6 +215,7 @@ class UsersController {
             }
             catch (error) {
                 console.error('Error in CreateUser:', error);
+                console.error('[UsersController.CreateUser] Error stack:', error === null || error === void 0 ? void 0 : error.stack);
                 const errorMessage = (error === null || error === void 0 ? void 0 : error.message) || 'Unknown error';
                 // Check for duplicate username error
                 if (errorMessage.includes('unique constraint') || errorMessage.includes('duplicate key')) {
@@ -169,19 +229,154 @@ class UsersController {
                 res.status(500).json({
                     success: false,
                     data: null,
-                    message: 'Failed to create user'
+                    message: 'Failed to create user',
+                    debug: errorMessage
                 });
             }
         });
     }
     UpdateUser(req, res) {
         return __awaiter(this, void 0, void 0, function* () {
-            // TODO: Implement UpdateUser handler
-            res.status(501).json({
-                success: false,
-                data: null,
-                message: 'UpdateUser not implemented yet'
-            });
+            try {
+                const userId = parseInt(req.params.id);
+                const { username, password, profile_picture, role } = req.body;
+                // Validate user ID parameter
+                if (isNaN(userId) || userId <= 0) {
+                    res.status(400).json({
+                        success: false,
+                        data: null,
+                        message: 'Invalid user ID. Must be a positive number.'
+                    });
+                    return;
+                }
+                // Validate that at least one field is provided for update
+                if (username === undefined && password === undefined && profile_picture === undefined && role === undefined) {
+                    res.status(400).json({
+                        success: false,
+                        data: null,
+                        message: 'At least one field (username, password, profile_picture, or role) must be provided for update'
+                    });
+                    return;
+                }
+                // Validate username if provided
+                if (username !== undefined) {
+                    if (typeof username !== 'string' || username.trim() === '') {
+                        res.status(400).json({
+                            success: false,
+                            data: null,
+                            message: 'Username must be a non-empty string if provided'
+                        });
+                        return;
+                    }
+                }
+                // Validate profile_picture if provided
+                if (profile_picture !== undefined && typeof profile_picture !== 'string') {
+                    res.status(400).json({
+                        success: false,
+                        data: null,
+                        message: 'Profile picture must be a string if provided'
+                    });
+                    return;
+                }
+                // Validate role if provided
+                if (role !== undefined) {
+                    if (typeof role !== 'number' || ![1, 2].includes(role)) {
+                        res.status(400).json({
+                            success: false,
+                            data: null,
+                            message: 'Role must be 1 (customer) or 2 (event_organizer) if provided'
+                        });
+                        return;
+                    }
+                }
+                // Validate password if provided
+                if (password !== undefined) {
+                    if (typeof password !== 'string') {
+                        res.status(400).json({
+                            success: false,
+                            data: null,
+                            message: 'Password must be a string if provided'
+                        });
+                        return;
+                    }
+                    if (password.length < 8) {
+                        res.status(400).json({
+                            success: false,
+                            data: null,
+                            message: 'Password must be at least 8 characters long'
+                        });
+                        return;
+                    }
+                    if (password.length > 128) {
+                        res.status(400).json({
+                            success: false,
+                            data: null,
+                            message: 'Password cannot exceed 128 characters'
+                        });
+                        return;
+                    }
+                    // Optional basic strength check (at least one letter and one number)
+                    const hasLetter = /[A-Za-z]/.test(password);
+                    const hasNumber = /\d/.test(password);
+                    if (!hasLetter || !hasNumber) {
+                        res.status(400).json({
+                            success: false,
+                            data: null,
+                            message: 'Password must contain at least one letter and one number'
+                        });
+                        return;
+                    }
+                }
+                // Check if user exists
+                const existingUser = yield this.usersRepo.GetUserById(userId);
+                if (!existingUser) {
+                    res.status(404).json({
+                        success: false,
+                        data: null,
+                        message: 'User not found'
+                    });
+                    return;
+                }
+                // Prepare update data
+                const updateData = {};
+                if (username !== undefined) {
+                    updateData.username = username.trim();
+                }
+                if (password !== undefined) {
+                    updateData.password = password; // Hashing handled in repository
+                }
+                if (profile_picture !== undefined) {
+                    updateData.profile_picture = profile_picture;
+                }
+                if (role !== undefined) {
+                    updateData.role = role;
+                }
+                // Update the user
+                const updatedUser = yield this.usersRepo.UpdateUser(userId, updateData);
+                res.status(200).json({
+                    success: true,
+                    data: updatedUser,
+                    message: 'User updated successfully'
+                });
+            }
+            catch (error) {
+                console.error('Error in UpdateUser:', error);
+                const errorMessage = (error === null || error === void 0 ? void 0 : error.message) || 'Unknown error';
+                // Check for specific error types
+                if (errorMessage.includes('Unique constraint')) {
+                    res.status(409).json({
+                        success: false,
+                        data: null,
+                        message: 'Username already exists. Please choose a different username.'
+                    });
+                    return;
+                }
+                res.status(500).json({
+                    success: false,
+                    data: null,
+                    message: 'Failed to update user'
+                });
+            }
         });
     }
     DeleteUser(req, res) {
@@ -278,6 +473,59 @@ class UsersController {
                     success: false,
                     data: null,
                     message: 'Failed to retrieve user coupons'
+                });
+            }
+        });
+    }
+    GetUserPointsSum(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const userIdStr = req.params.userId;
+                if (!userIdStr) {
+                    res.status(400).json({
+                        success: false,
+                        data: null,
+                        message: 'User ID is required'
+                    });
+                    return;
+                }
+                const userId = parseInt(userIdStr, 10);
+                if (isNaN(userId)) {
+                    res.status(400).json({
+                        success: false,
+                        data: null,
+                        message: 'Invalid User ID format'
+                    });
+                    return;
+                }
+                // Check if user exists
+                const user = yield this.usersRepo.GetUserById(userId);
+                if (!user) {
+                    res.status(404).json({
+                        success: false,
+                        data: null,
+                        message: 'User not found'
+                    });
+                    return;
+                }
+                // Get sum of non-expired points for the user
+                const pointsSum = yield this.usersRepo.GetUserPointsSum(userId);
+                res.status(200).json({
+                    success: true,
+                    data: {
+                        user_id: userId,
+                        username: user.username,
+                        total_points: pointsSum
+                    },
+                    message: 'User points sum retrieved successfully'
+                });
+            }
+            catch (error) {
+                console.error('Error in GetUserPointsSum:', error);
+                res.status(500).json({
+                    success: false,
+                    data: null,
+                    message: 'Failed to retrieve user points sum'
                 });
             }
         });

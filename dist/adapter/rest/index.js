@@ -19,6 +19,7 @@ const express_1 = __importDefault(require("express"));
 const client_1 = require("@prisma/client");
 const EventController_1 = require("../../services/event/v1/controllers/EventController");
 const UsersController_1 = require("../../services/event/v1/controllers/UsersController");
+const TransactionsController_1 = require("../../services/event/v1/controllers/TransactionsController");
 const adapter_prisma_postgresql_1 = require("../../services/event/v1/db/events/adapter_prisma_postgresql");
 const adapter_prisma_postgresql_2 = require("../../services/event/v1/db/users/adapter_prisma_postgresql");
 const MigrationService_1 = require("../../services/migration/MigrationService");
@@ -33,6 +34,7 @@ const eventsRepo = new adapter_prisma_postgresql_1.PostgresRepository(prismaClie
 const usersRepo = new adapter_prisma_postgresql_2.PostgresUsersRepository(prismaClient);
 const eventController = new EventController_1.EventController(eventsRepo);
 const usersController = new UsersController_1.UsersController(usersRepo);
+const transactionsController = new TransactionsController_1.TransactionsController(eventsRepo);
 const migrationService = new MigrationService_1.MigrationService();
 const seedService = new SeedService_1.SeedService();
 // Root endpoint
@@ -64,26 +66,38 @@ app.get('/events/:uuid/transactions', (req, res) => {
     eventController.GetTransactionsByEvent(req, res);
 });
 app.post('/transactions', (req, res) => {
-    eventController.CreateTransaction(req, res);
+    transactionsController.CreateTransaction(req, res);
 });
 app.get('/transactions/:transactionUuid', (req, res) => {
-    eventController.GetTransactionByUuid(req, res);
+    transactionsController.GetTransactionByUuid(req, res);
 });
 app.patch('/transactions/:transactionUuid/status', (req, res) => {
-    eventController.UpdateTransactionStatus(req, res);
+    transactionsController.UpdateTransactionStatus(req, res);
 });
 app.get('/transactions/:transactionUuid/tickets', (req, res) => {
-    eventController.GetTicketsByTransaction(req, res);
+    transactionsController.GetTicketsByTransaction(req, res);
 });
 // Users endpoints
 app.post('/users', (req, res) => {
     usersController.CreateUser(req, res);
+});
+// Get user by ID
+app.get('/users/:id', (req, res) => {
+    usersController.GetUserById(req, res);
 });
 app.get('/users/:userId/points', (req, res) => {
     usersController.GetUserPoints(req, res);
 });
 app.get('/users/:userId/coupons', (req, res) => {
     usersController.GetUserCoupons(req, res);
+});
+// Update user endpoint
+app.patch('/users/:id', (req, res) => {
+    usersController.UpdateUser(req, res);
+});
+// Points sum endpoint (separate from detailed points list)
+app.get('/users/:userId/points/sum', (req, res) => {
+    usersController.GetUserPointsSum(req, res);
 });
 // Migration endpoints
 app.post('/migration_up', (req, res) => __awaiter(void 0, void 0, void 0, function* () {

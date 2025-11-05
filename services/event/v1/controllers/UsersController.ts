@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import * as argon2 from 'argon2';
 import { UserObject, CreateUserRequest, UpdateUserRequest } from '../../entities/entities';
 import { UsersRepo } from '../db/users/interface';
 
@@ -19,12 +20,44 @@ export class UsersController {
   }
 
   async GetUserById(req: Request, res: Response): Promise<void> {
-    // TODO: Implement GetUserById handler
-    res.status(501).json({
-      success: false,
-      data: null,
-      message: 'GetUserById not implemented yet'
-    });
+    try {
+      const userId = parseInt(req.params.id);
+
+      // Validate user ID parameter
+      if (isNaN(userId) || userId <= 0) {
+        res.status(400).json({
+          success: false,
+          data: null,
+          message: 'Invalid user ID. Must be a positive number.'
+        });
+        return;
+      }
+
+      // Get the user
+      const user = await this.usersRepo.GetUserById(userId);
+
+      if (!user) {
+        res.status(404).json({
+          success: false,
+          data: null,
+          message: 'User not found'
+        });
+        return;
+      }
+
+      res.status(200).json({
+        success: true,
+        data: user,
+        message: 'User retrieved successfully'
+      });
+    } catch (error) {
+      console.error('Error in GetUserById:', error);
+      res.status(500).json({
+        success: false,
+        data: null,
+        message: 'Failed to retrieve user'
+      });
+    }
   }
 
   async GetUserByUsername(req: Request, res: Response): Promise<void> {
@@ -38,7 +71,8 @@ export class UsersController {
 
   async CreateUser(req: Request, res: Response): Promise<void> {
     try {
-      const { username, profile_picture, role, referred_by_code } = req.body;
+      console.log('[UsersController.CreateUser] Incoming body:', req.body);
+      const { username, password, profile_picture, role, referred_by_code } = req.body;
 
       // Validate required fields
       if (!username || typeof username !== 'string' || username.trim() === '') {
@@ -46,6 +80,35 @@ export class UsersController {
           success: false,
           data: null,
           message: 'Username is required and must be a non-empty string'
+        });
+        return;
+      }
+
+      // Validate password
+      if (!password || typeof password !== 'string') {
+        res.status(400).json({
+          success: false,
+          data: null,
+          message: 'Password is required and must be a string'
+        });
+        return;
+      }
+
+      // Validate password strength
+      if (password.length < 8) {
+        res.status(400).json({
+          success: false,
+          data: null,
+          message: 'Password must be at least 8 characters long'
+        });
+        return;
+      }
+
+      if (password.length > 128) {
+        res.status(400).json({
+          success: false,
+          data: null,
+          message: 'Password cannot exceed 128 characters'
         });
         return;
       }
@@ -119,6 +182,7 @@ export class UsersController {
 
       const userData: CreateUserRequest = {
         username: username.trim(),
+        password: password,
         profile_picture: profile_picture?.trim() || undefined,
         role: role || 1, // Default to customer role if not provided
         referred_by_code: referred_by_code?.trim() || undefined
@@ -173,18 +237,166 @@ export class UsersController {
       res.status(500).json({
         success: false,
         data: null,
-        message: 'Failed to create user'
+        message: 'Failed to create user',
+ 
+        debug: errorMessage
       });
     }
   }
 
   async UpdateUser(req: Request, res: Response): Promise<void> {
-    // TODO: Implement UpdateUser handler
-    res.status(501).json({
-      success: false,
-      data: null,
-      message: 'UpdateUser not implemented yet'
-    });
+    try {
+      const userId = parseInt(req.params.id);
+      const { username, password, profile_picture, role } = req.body;
+
+      // Validate user ID parameter
+      if (isNaN(userId) || userId <= 0) {
+        res.status(400).json({
+          success: false,
+          data: null,
+          message: 'Invalid user ID. Must be a positive number.'
+        });
+        return;
+      }
+
+      // Validate that at least one field is provided for update
+      if (username === undefined && password === undefined && profile_picture === undefined && role === undefined) {
+        res.status(400).json({
+          success: false,
+          data: null,
+          message: 'At least one field (username, password, profile_picture, or role) must be provided for update'
+        });
+        return;
+      }
+
+      // Validate username if provided
+      if (username !== undefined) {
+        if (typeof username !== 'string' || username.trim() === '') {
+          res.status(400).json({
+            success: false,
+            data: null,
+            message: 'Username must be a non-empty string if provided'
+          });
+          return;
+        }
+      }
+
+      // Validate profile_picture if provided
+      if (profile_picture !== undefined && typeof profile_picture !== 'string') {
+        res.status(400).json({
+          success: false,
+          data: null,
+          message: 'Profile picture must be a string if provided'
+        });
+        return;
+      }
+
+      // Validate role if provided
+      if (role !== undefined) {
+        if (typeof role !== 'number' || ![1, 2].includes(role)) {
+          res.status(400).json({
+            success: false,
+            data: null,
+            message: 'Role must be 1 (customer) or 2 (event_organizer) if provided'
+          });
+          return;
+        }
+      }
+
+      // Validate password if provided
+      if (password !== undefined) {
+        if (typeof password !== 'string') {
+          res.status(400).json({
+            success: false,
+            data: null,
+            message: 'Password must be a string if provided'
+          });
+          return;
+        }
+        if (password.length < 8) {
+          res.status(400).json({
+            success: false,
+            data: null,
+            message: 'Password must be at least 8 characters long'
+          });
+          return;
+        }
+        if (password.length > 128) {
+          res.status(400).json({
+            success: false,
+            data: null,
+            message: 'Password cannot exceed 128 characters'
+          });
+          return;
+        }
+        // Optional basic strength check (at least one letter and one number)
+        const hasLetter = /[A-Za-z]/.test(password);
+        const hasNumber = /\d/.test(password);
+        if (!hasLetter || !hasNumber) {
+          res.status(400).json({
+            success: false,
+            data: null,
+            message: 'Password must contain at least one letter and one number'
+          });
+          return;
+        }
+      }
+
+      // Check if user exists
+      const existingUser = await this.usersRepo.GetUserById(userId);
+      if (!existingUser) {
+        res.status(404).json({
+          success: false,
+          data: null,
+          message: 'User not found'
+        });
+        return;
+      }
+
+      // Prepare update data
+      const updateData: UpdateUserRequest = {};
+      if (username !== undefined) {
+        updateData.username = username.trim();
+      }
+      if (password !== undefined) {
+        updateData.password = password; // Hashing handled in repository
+      }
+      if (profile_picture !== undefined) {
+        updateData.profile_picture = profile_picture;
+      }
+      if (role !== undefined) {
+        updateData.role = role;
+      }
+
+      // Update the user
+      const updatedUser = await this.usersRepo.UpdateUser(userId, updateData);
+
+      res.status(200).json({
+        success: true,
+        data: updatedUser,
+        message: 'User updated successfully'
+      });
+    } catch (error) {
+      console.error('Error in UpdateUser:', error);
+      
+      const errorMessage = (error as Error)?.message || 'Unknown error';
+      
+      // Check for specific error types
+      if (errorMessage.includes('Unique constraint')) {
+        res.status(409).json({
+          success: false,
+          data: null,
+          message: 'Username already exists. Please choose a different username.'
+        });
+        return;
+      }
+
+      res.status(500).json({
+        success: false,
+        data: null,
+        message: 'Failed to update user'
+      });
+    }
   }
 
   async DeleteUser(req: Request, res: Response): Promise<void> {

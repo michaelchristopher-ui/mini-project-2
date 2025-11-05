@@ -85,12 +85,22 @@ app.post('/users', (req: Request, res: Response) => {
     usersController.CreateUser(req, res);
 });
 
+// Get user by ID
+app.get('/users/:id', (req: Request, res: Response) => {
+    usersController.GetUserById(req, res);
+});
+
 app.get('/users/:userId/points', (req: Request, res: Response) => {
     usersController.GetUserPoints(req, res);
 });
 
 app.get('/users/:userId/coupons', (req: Request, res: Response) => {
     usersController.GetUserCoupons(req, res);
+});
+
+// Update user endpoint
+app.patch('/users/:id', (req: Request, res: Response) => {
+    usersController.UpdateUser(req, res);
 });
 
 // Points sum endpoint (separate from detailed points list)

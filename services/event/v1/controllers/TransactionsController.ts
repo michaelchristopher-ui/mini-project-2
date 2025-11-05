@@ -64,7 +64,7 @@ export class TransactionsController {
   async CreateTransaction(req: Request, res: Response): Promise<void> {
     try {
       // Validate request body
-      const { event_id, created_by, ticket_ids, points_to_use, discount_value } = req.body;
+      const { event_id, created_by, ticket_ids, points_to_use, voucher_ids, coupon_ids } = req.body;
 
       if (!event_id || typeof event_id !== 'number') {
         res.status(400).json({
@@ -136,14 +136,62 @@ export class TransactionsController {
         }
       }
 
-      // Validate discount_value if provided
-      if (discount_value !== undefined && (typeof discount_value !== 'number' || discount_value < 0)) {
-        res.status(400).json({
-          success: false,
-          data: null,
-          message: 'discount_value must be a non-negative number if provided'
-        });
-        return;
+      // Validate voucher_ids if provided
+      if (voucher_ids !== undefined) {
+        if (!Array.isArray(voucher_ids)) {
+          res.status(400).json({
+            success: false,
+            data: null,
+            message: 'voucher_ids must be an array if provided'
+          });
+          return;
+        }
+
+        // Validate that all voucher IDs are numbers
+        for (const voucherId of voucher_ids) {
+          if (typeof voucherId !== 'number' || !Number.isInteger(voucherId) || voucherId < 1) {
+            res.status(400).json({
+              success: false,
+              data: null,
+              message: 'All voucher IDs must be positive integers'
+            });
+            return;
+          }
+        }
+      }
+
+      // Validate coupon_ids if provided
+      if (coupon_ids !== undefined) {
+        if (!Array.isArray(coupon_ids)) {
+          res.status(400).json({
+            success: false,
+            data: null,
+            message: 'coupon_ids must be an array if provided'
+          });
+          return;
+        }
+
+        // Validate that all coupon IDs are numbers
+        for (const couponId of coupon_ids) {
+          if (typeof couponId !== 'number' || !Number.isInteger(couponId) || couponId < 1) {
+            res.status(400).json({
+              success: false,
+              data: null,
+              message: 'All coupon IDs must be positive integers'
+            });
+            return;
+          }
+        }
+
+        // If coupons are being used, created_by is required
+        if (coupon_ids.length > 0 && !created_by) {
+          res.status(400).json({
+            success: false,
+            data: null,
+            message: 'created_by is required when using coupons'
+          });
+          return;
+        }
       }
 
       const transactionData: CreateTransactionRequest = {
@@ -151,7 +199,8 @@ export class TransactionsController {
         created_by,
         ticket_ids,
         points_to_use,
-        discount_value
+        voucher_ids,
+        coupon_ids
       };
 
       const newTransaction = await this.eventsRepo.CreateTransaction(transactionData);
@@ -181,6 +230,24 @@ export class TransactionsController {
           success: false,
           data: null,
           message: 'Event not found'
+        });
+        return;
+      }
+
+      if (errorMessage.includes('Voucher with ID') || errorMessage.includes('Coupon with ID')) {
+        res.status(400).json({
+          success: false,
+          data: null,
+          message: errorMessage
+        });
+        return;
+      }
+
+      if (errorMessage.includes('Total discounts and points') && errorMessage.includes('exceed')) {
+        res.status(400).json({
+          success: false,
+          data: null,
+          message: errorMessage
         });
         return;
       }

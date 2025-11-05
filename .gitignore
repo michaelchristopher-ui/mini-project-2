@@ -1,0 +1,62 @@
+# ---- Node & Package Manager ----
+node_modules/
+# Keep lockfile for reproducible builds
+# package-lock.json
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ---- Build Output ----
+dist/
+# TypeScript incremental build info
+*.tsbuildinfo
+
+# ---- Logs ----
+logs/
+*.log
+
+# ---- Environment & Secrets ----
+.env
+.env.*
+!.env.example
+# .env.docker
+
+# ---- Prisma ----
+# Generated client cache artifacts (sometimes)
+prisma/generated/
+
+# ---- Coverage / Reports ----
+coverage/
+*.lcov
+
+# ---- OS / Editor junk ----
+.DS_Store
+Thumbs.db
+Desktop.ini
+.vscode/
+
+# ---- Misc ----
+# Local debug scripts (optional uncomment to ignore)
+# debug_user_create.js
+
+# ---- OneDrive sync placeholders ----
+~$*
+
+# ---- Archives ----
+*.zip
+*.tar
+*.tar.gz
+
+# ---- Temporary files ----
+*.tmp
+*.swp
+*.swo
+
+# ---- Ignore SQL migration temp artifacts (keep actual migrations) ----
+# *.sql.tmp
+
+# ---- Optional: ignore generated images/uploads ----
+# uploads/
+
+# Add additional ignores below as needed.

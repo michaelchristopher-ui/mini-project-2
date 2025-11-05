@@ -211,6 +211,40 @@ export class PostgresRepository implements EventsRepo {
     }
   }
 
+  async GetVoucherById(voucherId: number): Promise<VoucherObject | null> {
+    try {
+      const voucher = await this.prisma.voucher.findUnique({
+        where: {
+          id: voucherId,
+          status: 'atv'  // Only return active vouchers
+        }
+      });
+
+      if (!voucher) {
+        return null;
+      }
+
+      return {
+        id: voucher.id,
+        uuid: voucher.uuid,
+        event_id: voucher.event_id,
+        code: voucher.code,
+        discount_type: voucher.discount_type,
+        discount_amount: voucher.discount_amount.toNumber(),
+        max_uses: voucher.max_uses,
+        used_count: voucher.used_count || 0,
+        start_date: voucher.start_date,
+        end_date: voucher.end_date,
+        created_at: voucher.created_at || new Date(),
+        updated_at: voucher.updated_at || new Date(),
+        status: voucher.status
+      };
+    } catch (error) {
+      console.error('Detailed Prisma error in GetVoucherById:', error);
+      throw new Error(`Failed to retrieve voucher: ${(error as any)?.message || 'Unknown error'}`);
+    }
+  }
+
   async CreateVoucher(eventUuid: string, voucherData: CreateVoucherRequest): Promise<VoucherObject> {
     try {
       // First, find the event by UUID to get the event ID
@@ -295,6 +329,7 @@ export class PostgresRepository implements EventsRepo {
         uuid: transaction.uuid,
         event_id: transaction.event_id,
         status: transaction.status,
+        remaining_price: (transaction as any).remaining_price?.toNumber() || 0,
         created_at: transaction.created_at,
         created_by: transaction.created_by,
         confirmed_at: transaction.confirmed_at,
@@ -323,6 +358,7 @@ export class PostgresRepository implements EventsRepo {
         uuid: transaction.uuid,
         event_id: transaction.event_id,
         status: transaction.status,
+        remaining_price: (transaction as any).remaining_price?.toNumber() || 0,
         created_at: transaction.created_at,
         created_by: transaction.created_by,
         confirmed_at: transaction.confirmed_at,
@@ -405,12 +441,90 @@ export class PostgresRepository implements EventsRepo {
           }
         }
 
-        // Calculate remaining price after points and discount
-        const pointsValue = transactionData.points_to_use || 0;
-        const discountValue = transactionData.discount_value || 0;
-        const remainingPrice = Math.max(0, totalPrice - pointsValue - discountValue);
+        // Calculate discounts from vouchers and coupons
+        let voucherDiscountValue = 0;
+        let couponDiscountValue = 0;
+        const validVouchers: any[] = [];
+        const validCoupons: any[] = [];
 
-        console.log(`Transaction pricing: Total=${totalPrice}, Points=${pointsValue}, Discount=${discountValue}, Remaining=${remainingPrice}`);
+        // Validate and calculate voucher discounts
+        if (transactionData.voucher_ids && transactionData.voucher_ids.length > 0) {
+          for (const voucherId of transactionData.voucher_ids) {
+            const voucher = await prisma.voucher.findUnique({
+              where: { 
+                id: voucherId,
+                status: 'atv'
+              }
+            });
+
+            if (!voucher) {
+              throw new Error(`Voucher with ID ${voucherId} not found or inactive`);
+            }
+
+            // Check if voucher is valid for this event
+            if (voucher.event_id !== transactionData.event_id) {
+              throw new Error(`Voucher with ID ${voucherId} is not valid for this event`);
+            }
+
+            // Check if voucher is within date range
+            const now = new Date();
+            if (voucher.start_date > now || voucher.end_date < now) {
+              throw new Error(`Voucher with ID ${voucherId} is not valid at this time`);
+            }
+
+            // Check usage limits
+            if (voucher.max_uses && (voucher.used_count || 0) >= voucher.max_uses) {
+              throw new Error(`Voucher with ID ${voucherId} has exceeded its usage limit`);
+            }
+
+            validVouchers.push(voucher);
+
+            // Calculate discount amount
+            if (voucher.discount_type === 'fixed') {
+              voucherDiscountValue += voucher.discount_amount.toNumber();
+            } else if (voucher.discount_type === 'percentage') {
+              voucherDiscountValue += (totalPrice * voucher.discount_amount.toNumber()) / 100;
+            }
+          }
+        }
+
+        // Validate and calculate coupon discounts
+        if (transactionData.coupon_ids && transactionData.coupon_ids.length > 0) {
+          for (const couponId of transactionData.coupon_ids) {
+            const coupon = await (prisma as any).coupon.findUnique({
+              where: { 
+                id: couponId,
+                is_active: true
+              }
+            });
+
+            if (!coupon) {
+              throw new Error(`Coupon with ID ${couponId} not found or inactive`);
+            }
+
+            // Check if coupon belongs to the user creating the transaction
+            if (transactionData.created_by && coupon.user_id !== transactionData.created_by) {
+              throw new Error(`Coupon with ID ${couponId} does not belong to the user`);
+            }
+
+            validCoupons.push(coupon);
+            couponDiscountValue += coupon.discount_amount;
+          }
+        }
+
+        // Calculate remaining price after points and all discounts
+        const pointsValue = transactionData.points_to_use || 0;
+        const totalDiscountValue = voucherDiscountValue + couponDiscountValue;
+        
+        // Check if total discount + points exceeds the price (negative remaining price)
+        const totalReduction = pointsValue + totalDiscountValue;
+        if (totalReduction > totalPrice) {
+          throw new Error(`Total discounts and points (${totalReduction}) exceed the total price (${totalPrice}). Remaining amount would be negative.`);
+        }
+
+        const remainingPrice = totalPrice - totalReduction;
+
+        console.log(`Transaction pricing: Total=${totalPrice}, Points=${pointsValue}, Voucher Discount=${voucherDiscountValue}, Coupon Discount=${couponDiscountValue}, Total Discount=${totalDiscountValue}, Remaining=${remainingPrice}`);
 
         // Reserve seats by reducing available_seats
         await prisma.event.update({
@@ -423,12 +537,13 @@ export class PostgresRepository implements EventsRepo {
         });
 
         // Create the transaction record
-        const newTransaction = await prisma.transaction.create({
+        const newTransaction = await (prisma as any).transaction.create({
           data: {
             uuid: transactionUuid,
             event_id: transactionData.event_id,
             status: 1, // Default to "Waiting for Payment"
             created_by: transactionData.created_by,
+            remaining_price: remainingPrice,
           }
         });
 
@@ -461,11 +576,35 @@ export class PostgresRepository implements EventsRepo {
           console.log(`Deducted ${transactionData.points_to_use} points from user ${transactionData.created_by}`);
         }
 
+        // Update voucher usage count for used vouchers
+        for (const voucher of validVouchers) {
+          await prisma.voucher.update({
+            where: { id: voucher.id },
+            data: {
+              used_count: {
+                increment: 1
+              }
+            }
+          });
+          console.log(`Incremented usage count for voucher ${voucher.id}`);
+        }
+
+        // Mark used coupons as inactive
+        for (const coupon of validCoupons) {
+          await (prisma as any).coupon.update({
+            where: { id: coupon.id },
+            data: {
+              is_active: false
+            }
+          });
+          console.log(`Marked coupon ${coupon.id} as inactive`);
+        }
+
         return { 
           ...newTransaction, 
           total_price: totalPrice,
           points_used: pointsValue,
-          discount_applied: discountValue,
+          discount_applied: totalDiscountValue,
           remaining_price: remainingPrice
         };
       });
@@ -583,6 +722,7 @@ export class PostgresRepository implements EventsRepo {
         uuid: result.uuid,
         event_id: result.event_id,
         status: result.status,
+        remaining_price: (result as any).remaining_price?.toNumber() || 0,
         created_at: result.created_at,
         created_by: result.created_by,
         confirmed_at: result.confirmed_at,

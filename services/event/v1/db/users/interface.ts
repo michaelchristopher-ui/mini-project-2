@@ -12,5 +12,6 @@ export interface UsersRepo {
   CreateWelcomeCoupon(userId: number, discountAmount: number, expiry?: Date): Promise<void>;
   GetUserPoints(userId: number): Promise<any[]>;
   GetUserCoupons(userId: number): Promise<any[]>;
+  GetCouponById(couponId: number): Promise<any | null>;
   GetUserPointsSum(userId: number): Promise<number>;
 }

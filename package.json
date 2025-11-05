@@ -29,7 +29,11 @@
   },
   "dependencies": {
     "@prisma/client": "^6.18.0",
+    "@types/argon2": "^0.14.1",
+    "argon2": "^0.44.0",
     "dotenv": "^17.2.3",
-    "express": "^5.1.0"
+    "express": "^5.1.0",
+    "node-fetch": "^2.7.0",
+    "uuid": "^13.0.0"
   }
 }

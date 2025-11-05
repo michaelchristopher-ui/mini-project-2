@@ -205,6 +205,40 @@ class PostgresRepository {
             }
         });
     }
+    GetVoucherById(voucherId) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const voucher = yield this.prisma.voucher.findUnique({
+                    where: {
+                        id: voucherId,
+                        status: 'atv' // Only return active vouchers
+                    }
+                });
+                if (!voucher) {
+                    return null;
+                }
+                return {
+                    id: voucher.id,
+                    uuid: voucher.uuid,
+                    event_id: voucher.event_id,
+                    code: voucher.code,
+                    discount_type: voucher.discount_type,
+                    discount_amount: voucher.discount_amount.toNumber(),
+                    max_uses: voucher.max_uses,
+                    used_count: voucher.used_count || 0,
+                    start_date: voucher.start_date,
+                    end_date: voucher.end_date,
+                    created_at: voucher.created_at || new Date(),
+                    updated_at: voucher.updated_at || new Date(),
+                    status: voucher.status
+                };
+            }
+            catch (error) {
+                console.error('Detailed Prisma error in GetVoucherById:', error);
+                throw new Error(`Failed to retrieve voucher: ${(error === null || error === void 0 ? void 0 : error.message) || 'Unknown error'}`);
+            }
+        });
+    }
     CreateVoucher(eventUuid, voucherData) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
@@ -280,16 +314,20 @@ class PostgresRepository {
                         created_at: 'desc',
                     },
                 });
-                return transactions.map(transaction => ({
-                    id: transaction.id,
-                    uuid: transaction.uuid,
-                    event_id: transaction.event_id,
-                    status: transaction.status,
-                    created_at: transaction.created_at,
-                    created_by: transaction.created_by,
-                    confirmed_at: transaction.confirmed_at,
-                    confirmed_by: transaction.confirmed_by
-                }));
+                return transactions.map(transaction => {
+                    var _a;
+                    return ({
+                        id: transaction.id,
+                        uuid: transaction.uuid,
+                        event_id: transaction.event_id,
+                        status: transaction.status,
+                        remaining_price: ((_a = transaction.remaining_price) === null || _a === void 0 ? void 0 : _a.toNumber()) || 0,
+                        created_at: transaction.created_at,
+                        created_by: transaction.created_by,
+                        confirmed_at: transaction.confirmed_at,
+                        confirmed_by: transaction.confirmed_by
+                    });
+                });
             }
             catch (error) {
                 console.error('Detailed Prisma error in GetTransactionsByEvent:', error);
@@ -299,6 +337,7 @@ class PostgresRepository {
     }
     GetTransactionByUuid(transactionUuid) {
         return __awaiter(this, void 0, void 0, function* () {
+            var _a;
             try {
                 const transaction = yield this.prisma.transaction.findUnique({
                     where: {
@@ -313,6 +352,7 @@ class PostgresRepository {
                     uuid: transaction.uuid,
                     event_id: transaction.event_id,
                     status: transaction.status,
+                    remaining_price: ((_a = transaction.remaining_price) === null || _a === void 0 ? void 0 : _a.toNumber()) || 0,
                     created_at: transaction.created_at,
                     created_by: transaction.created_by,
                     confirmed_at: transaction.confirmed_at,
@@ -348,6 +388,114 @@ class PostgresRepository {
                     if (event.available_seats < seatCount) {
                         throw new Error(`Insufficient seats available. Requested: ${seatCount}, Available: ${event.available_seats}`);
                     }
+                    // If user wants to use points, validate point availability
+                    let userPointsSum = 0;
+                    if (transactionData.points_to_use && transactionData.points_to_use > 0 && transactionData.created_by) {
+                        const now = new Date();
+                        // Get current non-expired points for the user
+                        const pointsResult = yield prisma.points.aggregate({
+                            where: {
+                                user_id: transactionData.created_by,
+                                OR: [
+                                    { expiry: null }, // No expiry date
+                                    { expiry: { gt: now } } // Expiry date is in the future
+                                ]
+                            },
+                            _sum: {
+                                points_count: true
+                            }
+                        });
+                        userPointsSum = pointsResult._sum.points_count || 0;
+                        // Check if user has enough points
+                        if (transactionData.points_to_use > userPointsSum) {
+                            throw new Error(`Insufficient points available. Requested: ${transactionData.points_to_use}, Available: ${userPointsSum}`);
+                        }
+                    }
+                    // Calculate total price for all tickets
+                    let totalPrice = 0;
+                    if (transactionData.ticket_ids && Object.keys(transactionData.ticket_ids).length > 0) {
+                        const ticketIds = Object.keys(transactionData.ticket_ids).map(id => parseInt(id));
+                        const tickets = yield prisma.ticket.findMany({
+                            where: {
+                                id: { in: ticketIds },
+                                event_id: transactionData.event_id
+                            }
+                        });
+                        for (const ticket of tickets) {
+                            const quantity = transactionData.ticket_ids[ticket.id] || 0;
+                            totalPrice += ticket.price.toNumber() * quantity;
+                        }
+                    }
+                    // Calculate discounts from vouchers and coupons
+                    let voucherDiscountValue = 0;
+                    let couponDiscountValue = 0;
+                    const validVouchers = [];
+                    const validCoupons = [];
+                    // Validate and calculate voucher discounts
+                    if (transactionData.voucher_ids && transactionData.voucher_ids.length > 0) {
+                        for (const voucherId of transactionData.voucher_ids) {
+                            const voucher = yield prisma.voucher.findUnique({
+                                where: {
+                                    id: voucherId,
+                                    status: 'atv'
+                                }
+                            });
+                            if (!voucher) {
+                                throw new Error(`Voucher with ID ${voucherId} not found or inactive`);
+                            }
+                            // Check if voucher is valid for this event
+                            if (voucher.event_id !== transactionData.event_id) {
+                                throw new Error(`Voucher with ID ${voucherId} is not valid for this event`);
+                            }
+                            // Check if voucher is within date range
+                            const now = new Date();
+                            if (voucher.start_date > now || voucher.end_date < now) {
+                                throw new Error(`Voucher with ID ${voucherId} is not valid at this time`);
+                            }
+                            // Check usage limits
+                            if (voucher.max_uses && (voucher.used_count || 0) >= voucher.max_uses) {
+                                throw new Error(`Voucher with ID ${voucherId} has exceeded its usage limit`);
+                            }
+                            validVouchers.push(voucher);
+                            // Calculate discount amount
+                            if (voucher.discount_type === 'fixed') {
+                                voucherDiscountValue += voucher.discount_amount.toNumber();
+                            }
+                            else if (voucher.discount_type === 'percentage') {
+                                voucherDiscountValue += (totalPrice * voucher.discount_amount.toNumber()) / 100;
+                            }
+                        }
+                    }
+                    // Validate and calculate coupon discounts
+                    if (transactionData.coupon_ids && transactionData.coupon_ids.length > 0) {
+                        for (const couponId of transactionData.coupon_ids) {
+                            const coupon = yield prisma.coupon.findUnique({
+                                where: {
+                                    id: couponId,
+                                    is_active: true
+                                }
+                            });
+                            if (!coupon) {
+                                throw new Error(`Coupon with ID ${couponId} not found or inactive`);
+                            }
+                            // Check if coupon belongs to the user creating the transaction
+                            if (transactionData.created_by && coupon.user_id !== transactionData.created_by) {
+                                throw new Error(`Coupon with ID ${couponId} does not belong to the user`);
+                            }
+                            validCoupons.push(coupon);
+                            couponDiscountValue += coupon.discount_amount;
+                        }
+                    }
+                    // Calculate remaining price after points and all discounts
+                    const pointsValue = transactionData.points_to_use || 0;
+                    const totalDiscountValue = voucherDiscountValue + couponDiscountValue;
+                    // Check if total discount + points exceeds the price (negative remaining price)
+                    const totalReduction = pointsValue + totalDiscountValue;
+                    if (totalReduction > totalPrice) {
+                        throw new Error(`Total discounts and points (${totalReduction}) exceed the total price (${totalPrice}). Remaining amount would be negative.`);
+                    }
+                    const remainingPrice = totalPrice - totalReduction;
+                    console.log(`Transaction pricing: Total=${totalPrice}, Points=${pointsValue}, Voucher Discount=${voucherDiscountValue}, Coupon Discount=${couponDiscountValue}, Total Discount=${totalDiscountValue}, Remaining=${remainingPrice}`);
                     // Reserve seats by reducing available_seats
                     yield prisma.event.update({
                         where: { id: transactionData.event_id },
@@ -364,6 +512,7 @@ class PostgresRepository {
                             event_id: transactionData.event_id,
                             status: 1, // Default to "Waiting for Payment"
                             created_by: transactionData.created_by,
+                            remaining_price: remainingPrice,
                         }
                     });
                     // Create the ticket-transaction relationships with quantities
@@ -377,9 +526,45 @@ class PostgresRepository {
                             data: ticketTransactionData
                         });
                     }
-                    return newTransaction;
+                    // Deduct points if they were used
+                    if (transactionData.points_to_use && transactionData.points_to_use > 0 && transactionData.created_by) {
+                        // Add a negative points entry to deduct the used points
+                        yield prisma.points.create({
+                            data: {
+                                user_id: transactionData.created_by,
+                                points_count: -transactionData.points_to_use, // Negative to deduct
+                                expiry: null, // Deductions don't expire
+                                created_at: new Date(),
+                                updated_at: new Date()
+                            }
+                        });
+                        console.log(`Deducted ${transactionData.points_to_use} points from user ${transactionData.created_by}`);
+                    }
+                    // Update voucher usage count for used vouchers
+                    for (const voucher of validVouchers) {
+                        yield prisma.voucher.update({
+                            where: { id: voucher.id },
+                            data: {
+                                used_count: {
+                                    increment: 1
+                                }
+                            }
+                        });
+                        console.log(`Incremented usage count for voucher ${voucher.id}`);
+                    }
+                    // Mark used coupons as inactive
+                    for (const coupon of validCoupons) {
+                        yield prisma.coupon.update({
+                            where: { id: coupon.id },
+                            data: {
+                                is_active: false
+                            }
+                        });
+                        console.log(`Marked coupon ${coupon.id} as inactive`);
+                    }
+                    return Object.assign(Object.assign({}, newTransaction), { total_price: totalPrice, points_used: pointsValue, discount_applied: totalDiscountValue, remaining_price: remainingPrice });
                 }));
-                // Convert to domain model
+                // Convert to domain model and include pricing information
                 return {
                     id: result.id,
                     uuid: result.uuid,
@@ -388,44 +573,17 @@ class PostgresRepository {
                     created_at: result.created_at,
                     created_by: result.created_by,
                     confirmed_at: result.confirmed_at,
-                    confirmed_by: result.confirmed_by
+                    confirmed_by: result.confirmed_by,
+                    total_price: result.total_price,
+                    points_used: result.points_used,
+                    discount_applied: result.discount_applied,
+                    remaining_price: result.remaining_price
                 };
             }
             catch (error) {
                 console.error('Detailed Prisma error in CreateTransaction:', error);
                 console.error('Error message:', (error === null || error === void 0 ? void 0 : error.message) || 'Unknown error');
                 throw new Error(`Failed to create transaction: ${(error === null || error === void 0 ? void 0 : error.message) || 'Unknown error'}`);
-            }
-        });
-    }
-    RestoreSeatsForTransaction(transactionId) {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                // Get the transaction and sum quantities of associated tickets
-                const transaction = yield this.prisma.transaction.findUnique({
-                    where: { id: transactionId },
-                    include: {
-                        ticket_transactions: true
-                    }
-                });
-                if (!transaction) {
-                    throw new Error('Transaction not found');
-                }
-                const seatCount = transaction.ticket_transactions.reduce((total, tt) => total + tt.quantity, 0);
-                // Restore seats to the event
-                yield this.prisma.event.update({
-                    where: { id: transaction.event_id },
-                    data: {
-                        available_seats: {
-                            increment: seatCount
-                        }
-                    }
-                });
-                console.log(`Restored ${seatCount} seats for transaction ${transactionId}`);
-            }
-            catch (error) {
-                console.error('Error restoring seats for transaction:', error);
-                throw new Error(`Failed to restore seats: ${(error === null || error === void 0 ? void 0 : error.message) || 'Unknown error'}`);
             }
         });
     }
@@ -462,6 +620,7 @@ class PostgresRepository {
     }
     UpdateTransaction(transactionUuid, updateData) {
         return __awaiter(this, void 0, void 0, function* () {
+            var _a;
             try {
                 // First get the current transaction to check if we need to restore seats
                 const currentTransaction = yield this.prisma.transaction.findUnique({
@@ -508,6 +667,7 @@ class PostgresRepository {
                     uuid: result.uuid,
                     event_id: result.event_id,
                     status: result.status,
+                    remaining_price: ((_a = result.remaining_price) === null || _a === void 0 ? void 0 : _a.toNumber()) || 0,
                     created_at: result.created_at,
                     created_by: result.created_by,
                     confirmed_at: result.confirmed_at,

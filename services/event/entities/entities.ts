@@ -69,6 +69,7 @@ export type TransactionObject = {
   uuid: string;
   event_id: number;
   status: number; // 1=Waiting for Payment, 2=Waiting for Confirmation, 3=Completed, 4=Expired, 5=Canceled, 6=Rejected
+  remaining_price: number;
   created_at: Date;
   created_by: number | null;
   confirmed_at: Date | null;
@@ -77,7 +78,6 @@ export type TransactionObject = {
   total_price?: number;
   points_used?: number;
   discount_applied?: number;
-  remaining_price?: number;
 };
 
 export type TicketTransactionObject = {
@@ -91,7 +91,8 @@ export type CreateTransactionRequest = {
   created_by?: number;
   ticket_ids: { [ticketId: number]: number }; // Object mapping ticket ID to quantity
   points_to_use?: number; // Optional points to use for payment
-  discount_value?: number; // Optional discount amount to apply
+  voucher_ids?: number[]; // Optional array of voucher IDs to apply
+  coupon_ids?: number[]; // Optional array of coupon IDs to apply
 };
 
 export type UpdateTransactionRequest = {
@@ -123,6 +124,7 @@ export type UpdatePointRequest = {
 export type UserObject = {
   id: number;
   username: string;
+  password: string; // Argon2 hashed password
   profile_picture: string | null;
   role: number; // 1 = customer, 2 = event_organizer
   referral_code: string;
@@ -132,6 +134,7 @@ export type UserObject = {
 
 export type CreateUserRequest = {
   username: string;
+  password: string; // Plain text password (will be hashed)
   profile_picture?: string;
   role?: number; // Optional, defaults to 1 (customer)
   referred_by_code?: string; // Optional referral code from existing user
@@ -139,6 +142,7 @@ export type CreateUserRequest = {
 
 export type UpdateUserRequest = {
   username?: string;
+  password?: string; // Plain text password (will be hashed if provided)
   profile_picture?: string;
   role?: number; // 1 = customer, 2 = event_organizer
 };

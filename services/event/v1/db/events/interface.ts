@@ -6,6 +6,7 @@ export interface EventsRepo {
   CreateEvent(eventData: CreateEventRequest): Promise<EventObject>;
   CreateTicket(eventUuid: string, ticketData: CreateTicketRequest): Promise<TicketObject>;
   GetVouchersByEvent(eventUuid: string): Promise<VoucherObject[]>;
+  GetVoucherById(voucherId: number): Promise<VoucherObject | null>;
   CreateVoucher(eventUuid: string, voucherData: CreateVoucherRequest): Promise<VoucherObject>;
   
   // Transaction methods
