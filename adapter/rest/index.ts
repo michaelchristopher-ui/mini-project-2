@@ -90,7 +90,7 @@ app.get('/users/:id', (req: Request, res: Response) => {
     usersController.GetUserById(req, res);
 });
 
-app.put('/users/:userId', (req: Request, res: Response) => {
+app.patch('/users/:userId', (req: Request, res: Response) => {
     usersController.UpdateUser(req, res);
 });
 
@@ -104,11 +104,6 @@ app.get('/users/:userId/points', (req: Request, res: Response) => {
 
 app.get('/users/:userId/coupons', (req: Request, res: Response) => {
     usersController.GetUserCoupons(req, res);
-});
-
-// Update user endpoint
-app.patch('/users/:id', (req: Request, res: Response) => {
-    usersController.UpdateUser(req, res);
 });
 
 // Points sum endpoint (separate from detailed points list)
