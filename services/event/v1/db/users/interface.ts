@@ -14,4 +14,5 @@ export interface UsersRepo {
   GetUserCoupons(userId: number): Promise<any[]>;
   GetCouponById(couponId: number): Promise<any | null>;
   GetUserPointsSum(userId: number): Promise<number>;
+  ResetUserPassword(userId: number): Promise<UserObject>;
 }

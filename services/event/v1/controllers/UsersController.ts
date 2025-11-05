@@ -1,5 +1,4 @@
 import { Request, Response } from 'express';
-import * as argon2 from 'argon2';
 import { UserObject, CreateUserRequest, UpdateUserRequest } from '../../entities/entities';
 import { UsersRepo } from '../db/users/interface';
 
@@ -135,13 +134,25 @@ export class UsersController {
       }
 
       // Validate profile_picture if provided
-      if (profile_picture !== undefined && typeof profile_picture !== 'string') {
-        res.status(400).json({
-          success: false,
-          data: null,
-          message: 'Profile picture must be a string URL if provided'
-        });
-        return;
+      if (profile_picture !== undefined) {
+        if (typeof profile_picture !== 'string') {
+          res.status(400).json({
+            success: false,
+            data: null,
+            message: 'Profile picture must be a string URL if provided'
+          });
+          return;
+        }
+
+        // Validate URL length if profile_picture is not empty
+        if (profile_picture.trim() !== '' && profile_picture.length > 2048) {
+          res.status(400).json({
+            success: false,
+            data: null,
+            message: 'Profile picture URL cannot exceed 2048 characters'
+          });
+          return;
+        }
       }
 
       // Validate role if provided
@@ -216,7 +227,16 @@ export class UsersController {
 
       res.status(201).json({
         success: true,
-        data: newUser,
+        data: {
+          id: newUser.id,
+          username: newUser.username,
+          profile_picture: newUser.profile_picture,
+          role: newUser.role,
+          referral_code: newUser.referral_code,
+          created_at: newUser.created_at,
+          updated_at: newUser.updated_at
+          // Note: password field is intentionally excluded from response for security
+        },
         message: 'User created successfully'
       });
     } catch (error) {
@@ -246,15 +266,25 @@ export class UsersController {
 
   async UpdateUser(req: Request, res: Response): Promise<void> {
     try {
-      const userId = parseInt(req.params.id);
+      const userIdStr = req.params.userId;
       const { username, password, profile_picture, role } = req.body;
 
-      // Validate user ID parameter
-      if (isNaN(userId) || userId <= 0) {
+      // Validate user ID
+      if (!userIdStr) {
         res.status(400).json({
           success: false,
           data: null,
-          message: 'Invalid user ID. Must be a positive number.'
+          message: 'User ID is required'
+        });
+        return;
+      }
+
+      const userId = parseInt(userIdStr, 10);
+      if (isNaN(userId)) {
+        res.status(400).json({
+          success: false,
+          data: null,
+          message: 'Invalid User ID format'
         });
         return;
       }
@@ -279,25 +309,56 @@ export class UsersController {
           });
           return;
         }
+
+        if (username.length > 255) {
+          res.status(400).json({
+            success: false,
+            data: null,
+            message: 'Username cannot exceed 255 characters'
+          });
+          return;
+        }
+
+        const usernameRegex = /^[a-zA-Z0-9_-]+$/;
+        if (!usernameRegex.test(username)) {
+          res.status(400).json({
+            success: false,
+            data: null,
+            message: 'Username can only contain letters, numbers, underscores, and hyphens'
+          });
+          return;
+        }
       }
 
       // Validate profile_picture if provided
-      if (profile_picture !== undefined && typeof profile_picture !== 'string') {
-        res.status(400).json({
-          success: false,
-          data: null,
-          message: 'Profile picture must be a string if provided'
-        });
-        return;
+      if (profile_picture !== undefined) {
+        if (typeof profile_picture !== 'string') {
+          res.status(400).json({
+            success: false,
+            data: null,
+            message: 'Profile picture must be a string URL if provided'
+          });
+          return;
+        }
+
+        // Validate URL length if profile_picture is not empty
+        if (profile_picture.trim() !== '' && profile_picture.length > 2048) {
+          res.status(400).json({
+            success: false,
+            data: null,
+            message: 'Profile picture URL cannot exceed 2048 characters'
+          });
+          return;
+        }
       }
 
       // Validate role if provided
       if (role !== undefined) {
-        if (typeof role !== 'number' || ![1, 2].includes(role)) {
+        if (typeof role !== 'number' || !Number.isInteger(role) || (role !== 1 && role !== 2)) {
           res.status(400).json({
             success: false,
             data: null,
-            message: 'Role must be 1 (customer) or 2 (event_organizer) if provided'
+            message: 'Role must be 1 (customer) or 2 (event_organizer)'
           });
           return;
         }
@@ -362,27 +423,34 @@ export class UsersController {
         updateData.password = password; // Hashing handled in repository
       }
       if (profile_picture !== undefined) {
-        updateData.profile_picture = profile_picture;
+        updateData.profile_picture = profile_picture.trim();
       }
       if (role !== undefined) {
         updateData.role = role;
       }
-
-      // Update the user
       const updatedUser = await this.usersRepo.UpdateUser(userId, updateData);
 
       res.status(200).json({
         success: true,
-        data: updatedUser,
+        data: {
+          id: updatedUser.id,
+          username: updatedUser.username,
+          profile_picture: updatedUser.profile_picture,
+          role: updatedUser.role,
+          referral_code: updatedUser.referral_code,
+          created_at: updatedUser.created_at,
+          updated_at: updatedUser.updated_at
+          // Note: password field is intentionally excluded from response for security
+        },
         message: 'User updated successfully'
       });
     } catch (error) {
       console.error('Error in UpdateUser:', error);
-      
+
       const errorMessage = (error as Error)?.message || 'Unknown error';
-      
-      // Check for specific error types
-      if (errorMessage.includes('Unique constraint')) {
+
+      // Check for duplicate username error
+      if (errorMessage.includes('unique constraint') || errorMessage.includes('duplicate key')) {
         res.status(409).json({
           success: false,
           data: null,
@@ -551,6 +619,68 @@ export class UsersController {
         success: false,
         data: null,
         message: 'Failed to retrieve user points sum'
+      });
+    }
+  }
+
+  async ResetPassword(req: Request, res: Response): Promise<void> {
+    try {
+      const userIdStr = req.params.userId;
+      
+      if (!userIdStr) {
+        res.status(400).json({
+          success: false,
+          data: null,
+          message: 'User ID is required'
+        });
+        return;
+      }
+
+      const userId = parseInt(userIdStr, 10);
+      if (isNaN(userId)) {
+        res.status(400).json({
+          success: false,
+          data: null,
+          message: 'Invalid User ID format'
+        });
+        return;
+      }
+
+      // Check if user exists
+      const existingUser = await this.usersRepo.GetUserById(userId);
+      if (!existingUser) {
+        res.status(404).json({
+          success: false,
+          data: null,
+          message: 'User not found'
+        });
+        return;
+      }
+
+      // Reset password to default
+      const updatedUser = await this.usersRepo.ResetUserPassword(userId);
+
+      res.status(200).json({
+        success: true,
+        data: {
+          id: updatedUser.id,
+          username: updatedUser.username,
+          profile_picture: updatedUser.profile_picture,
+          role: updatedUser.role,
+          referral_code: updatedUser.referral_code,
+          created_at: updatedUser.created_at,
+          updated_at: updatedUser.updated_at
+          // Note: password field is intentionally excluded from response for security
+        },
+        message: 'Password reset to default successfully'
+      });
+    } catch (error) {
+      console.error('Error in ResetPassword:', error);
+
+      res.status(500).json({
+        success: false,
+        data: null,
+        message: 'Failed to reset password'
       });
     }
   }

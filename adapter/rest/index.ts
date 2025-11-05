@@ -90,6 +90,14 @@ app.get('/users/:id', (req: Request, res: Response) => {
     usersController.GetUserById(req, res);
 });
 
+app.put('/users/:userId', (req: Request, res: Response) => {
+    usersController.UpdateUser(req, res);
+});
+
+app.post('/users/:userId/reset-password', (req: Request, res: Response) => {
+    usersController.ResetPassword(req, res);
+});
+
 app.get('/users/:userId/points', (req: Request, res: Response) => {
     usersController.GetUserPoints(req, res);
 });

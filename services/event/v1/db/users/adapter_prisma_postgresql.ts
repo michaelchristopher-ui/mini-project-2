@@ -22,6 +22,7 @@ export class PostgresUsersRepository implements UsersRepo {
         username: user.username,
         password: (user as any).password,
         profile_picture: user.profile_picture,
+        password: (user as any).password,
         role: (user as any).role,
         referral_code: (user as any).referral_code,
         created_at: user.created_at,
@@ -48,6 +49,7 @@ export class PostgresUsersRepository implements UsersRepo {
         username: user.username,
         password: (user as any).password,
         profile_picture: user.profile_picture,
+        password: (user as any).password,
         role: (user as any).role,
         referral_code: (user as any).referral_code,
         created_at: user.created_at,
@@ -74,6 +76,7 @@ export class PostgresUsersRepository implements UsersRepo {
         username: user.username,
         password: (user as any).password,
         profile_picture: user.profile_picture,
+        password: (user as any).password,
         role: (user as any).role,
         referral_code: (user as any).referral_code,
         created_at: user.created_at,
@@ -100,6 +103,7 @@ export class PostgresUsersRepository implements UsersRepo {
           username: userData.username,
           password: hashedPassword,
           profile_picture: userData.profile_picture || null,
+          password: userData.password || 'password123', // Default password
           role: userData.role || 1 // Default to customer role
         } as any
       });
@@ -109,6 +113,7 @@ export class PostgresUsersRepository implements UsersRepo {
         username: newUser.username,
         password: (newUser as any).password,
         profile_picture: newUser.profile_picture,
+        password: (newUser as any).password,
         role: (newUser as any).role,
         referral_code: (newUser as any).referral_code,
         created_at: newUser.created_at,
@@ -167,6 +172,10 @@ export class PostgresUsersRepository implements UsersRepo {
         updatePayload.profile_picture = updateData.profile_picture;
       }
 
+      if (updateData.password !== undefined) {
+        updatePayload.password = updateData.password;
+      }
+
       if (updateData.role !== undefined) {
         updatePayload.role = updateData.role;
       }
@@ -181,6 +190,7 @@ export class PostgresUsersRepository implements UsersRepo {
         username: updatedUser.username,
         password: (updatedUser as any).password,
         profile_picture: updatedUser.profile_picture,
+        password: (updatedUser as any).password,
         role: (updatedUser as any).role,
         referral_code: (updatedUser as any).referral_code,
         created_at: updatedUser.created_at,
@@ -289,6 +299,7 @@ export class PostgresUsersRepository implements UsersRepo {
         username: user.username,
         password: (user as any).password,
         profile_picture: user.profile_picture,
+        password: (user as any).password,
         role: (user as any).role,
         referral_code: (user as any).referral_code,
         created_at: user.created_at,
@@ -400,6 +411,29 @@ export class PostgresUsersRepository implements UsersRepo {
     } catch (error) {
       console.error('Detailed Prisma error in GetUserPointsSum:', error);
       throw new Error(`Failed to get user points sum: ${(error as any)?.message || 'Unknown error'}`);
+    }
+  }
+
+  async ResetUserPassword(userId: number): Promise<UserObject> {
+    try {
+      const updatedUser = await this.prisma.user.update({
+        where: { id: userId },
+        data: { password: 'password123' } as any // Reset to default password
+      });
+
+      return {
+        id: updatedUser.id,
+        username: updatedUser.username,
+        profile_picture: updatedUser.profile_picture,
+        password: (updatedUser as any).password,
+        role: (updatedUser as any).role,
+        referral_code: (updatedUser as any).referral_code,
+        created_at: updatedUser.created_at,
+        updated_at: updatedUser.updated_at
+      };
+    } catch (error) {
+      console.error('Detailed Prisma error in ResetUserPassword:', error);
+      throw new Error(`Failed to reset user password: ${(error as any)?.message || 'Unknown error'}`);
     }
   }
 

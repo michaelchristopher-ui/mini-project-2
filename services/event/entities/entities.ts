@@ -126,6 +126,7 @@ export type UserObject = {
   username: string;
   password: string; // Argon2 hashed password
   profile_picture: string | null;
+  password: string;
   role: number; // 1 = customer, 2 = event_organizer
   referral_code: string;
   created_at: Date;
@@ -136,6 +137,7 @@ export type CreateUserRequest = {
   username: string;
   password: string; // Plain text password (will be hashed)
   profile_picture?: string;
+  password?: string; // Optional, defaults to 'password123'
   role?: number; // Optional, defaults to 1 (customer)
   referred_by_code?: string; // Optional referral code from existing user
 };
@@ -144,6 +146,7 @@ export type UpdateUserRequest = {
   username?: string;
   password?: string; // Plain text password (will be hashed if provided)
   profile_picture?: string;
+  password?: string;
   role?: number; // 1 = customer, 2 = event_organizer
 };
 
