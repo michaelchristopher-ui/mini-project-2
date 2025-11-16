@@ -16,6 +16,8 @@ export function toDomainModel(entity: Entity): EventObject {
     category_id: entity.category_id,
     status: entity.status,
     created_at: entity.created_at || now,
-    updated_at: entity.updated_at || now,
+    created_by: entity.created_by,
   };
 }
+
+

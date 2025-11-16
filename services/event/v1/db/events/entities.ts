@@ -11,5 +11,5 @@ export type Entity = {
   category_id: number | null;
   status: string; // 'atv' | 'del'
   created_at: Date | null;
-  updated_at: Date | null;
+  created_by: number;
 };

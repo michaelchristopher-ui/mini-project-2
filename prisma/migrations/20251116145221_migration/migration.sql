@@ -14,7 +14,7 @@ CREATE TABLE "event"."events" (
     "category_id" INTEGER,
     "event_type" VARCHAR(255),
     "created_at" TIMESTAMP(6) DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(6) DEFAULT CURRENT_TIMESTAMP,
+    "created_by" INTEGER NOT NULL,
     "status" VARCHAR(3) NOT NULL DEFAULT 'atv',
 
     CONSTRAINT "events_pkey" PRIMARY KEY ("id")
@@ -71,10 +71,11 @@ CREATE TABLE "event"."transactions" (
     "event_id" INTEGER NOT NULL,
     "status" INTEGER NOT NULL,
     "created_at" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "created_by" INTEGER,
+    "created_by" INTEGER NOT NULL,
     "confirmed_at" TIMESTAMP(6),
     "confirmed_by" INTEGER,
     "remaining_price" DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    "image_url" VARCHAR(255),
 
     CONSTRAINT "transactions_pkey" PRIMARY KEY ("id")
 );
@@ -124,6 +125,19 @@ CREATE TABLE "event"."coupons" (
     CONSTRAINT "coupons_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "event"."reviews" (
+    "id" SERIAL NOT NULL,
+    "event_id" INTEGER NOT NULL,
+    "created_by" INTEGER NOT NULL,
+    "rating" INTEGER NOT NULL,
+    "comment" VARCHAR(1000),
+    "created_at" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "reviews_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "events_uuid_key" ON "event"."events"("uuid");
 
@@ -160,8 +174,17 @@ CREATE INDEX "idx_coupons_user_id" ON "event"."coupons"("user_id");
 -- CreateIndex
 CREATE INDEX "idx_coupons_created_at" ON "event"."coupons"("created_at");
 
+-- CreateIndex
+CREATE INDEX "idx_reviews_event_id" ON "event"."reviews"("event_id");
+
+-- CreateIndex
+CREATE INDEX "idx_reviews_user_id" ON "event"."reviews"("created_by");
+
 -- AddForeignKey
 ALTER TABLE "event"."events" ADD CONSTRAINT "events_category_id_fkey" FOREIGN KEY ("category_id") REFERENCES "event"."categories"("id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+
+-- AddForeignKey
+ALTER TABLE "event"."events" ADD CONSTRAINT "fk_events_created_by" FOREIGN KEY ("created_by") REFERENCES "event"."users"("id") ON DELETE RESTRICT ON UPDATE NO ACTION;
 
 -- AddForeignKey
 ALTER TABLE "event"."tickets" ADD CONSTRAINT "tickets_event_id_fkey" FOREIGN KEY ("event_id") REFERENCES "event"."events"("id") ON DELETE RESTRICT ON UPDATE NO ACTION;
@@ -173,7 +196,7 @@ ALTER TABLE "event"."vouchers" ADD CONSTRAINT "vouchers_event_id_fkey" FOREIGN K
 ALTER TABLE "event"."transactions" ADD CONSTRAINT "fk_transactions_confirmed_by" FOREIGN KEY ("confirmed_by") REFERENCES "event"."users"("id") ON DELETE SET NULL ON UPDATE NO ACTION;
 
 -- AddForeignKey
-ALTER TABLE "event"."transactions" ADD CONSTRAINT "fk_transactions_created_by" FOREIGN KEY ("created_by") REFERENCES "event"."users"("id") ON DELETE SET NULL ON UPDATE NO ACTION;
+ALTER TABLE "event"."transactions" ADD CONSTRAINT "fk_transactions_created_by" FOREIGN KEY ("created_by") REFERENCES "event"."users"("id") ON DELETE RESTRICT ON UPDATE NO ACTION;
 
 -- AddForeignKey
 ALTER TABLE "event"."transactions" ADD CONSTRAINT "transactions_event_id_fkey" FOREIGN KEY ("event_id") REFERENCES "event"."events"("id") ON DELETE RESTRICT ON UPDATE NO ACTION;
@@ -189,3 +212,9 @@ ALTER TABLE "event"."points" ADD CONSTRAINT "fk_points_user_id" FOREIGN KEY ("us
 
 -- AddForeignKey
 ALTER TABLE "event"."coupons" ADD CONSTRAINT "fk_coupons_user_id" FOREIGN KEY ("user_id") REFERENCES "event"."users"("id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+
+-- AddForeignKey
+ALTER TABLE "event"."reviews" ADD CONSTRAINT "reviews_event_id_fkey" FOREIGN KEY ("event_id") REFERENCES "event"."events"("id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+
+-- AddForeignKey
+ALTER TABLE "event"."reviews" ADD CONSTRAINT "fk_reviews_user_id" FOREIGN KEY ("created_by") REFERENCES "event"."users"("id") ON DELETE RESTRICT ON UPDATE NO ACTION;

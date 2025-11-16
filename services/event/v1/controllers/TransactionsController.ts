@@ -105,11 +105,21 @@ export class TransactionsController {
         }
       }
 
+      // Validate created_by
+      if (created_by == undefined) {
+        res.status(400).json({
+          success: false,
+          data: null,
+          message: 'created_by must be provided'
+        });
+        return;
+      }
+
       if (created_by !== undefined && typeof created_by !== 'number') {
         res.status(400).json({
           success: false,
           data: null,
-          message: 'created_by must be a number if provided'
+          message: 'created_by must be a number'
         });
         return;
       }

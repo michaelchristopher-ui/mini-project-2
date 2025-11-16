@@ -22,7 +22,7 @@ app.use(express.json());
 const prismaClient = new PrismaClient();
 const eventsRepo = new PostgresRepository(prismaClient);
 const usersRepo = new PostgresUsersRepository(prismaClient);
-const eventController = new EventController(eventsRepo);
+const eventController = new EventController(eventsRepo, usersRepo);
 const usersController = new UsersController(usersRepo);
 const transactionsController = new TransactionsController(eventsRepo);
 const migrationService = new MigrationService();
@@ -59,6 +59,21 @@ app.post('/events/:uuid/vouchers', (req: Request, res: Response) => {
     eventController.CreateVoucher(req, res);
 });
 
+// Reviews endpoints
+// TODO: perhaps have this be universal?
+app.get('/users/:userId/reviews', (req: Request, res: Response) => {
+    eventController.GetReviewsByCreatedBy(req, res);
+});
+
+app.post('/events/:uuid/reviews', (req: Request, res: Response) => {
+    eventController.CreateReview(req, res);
+});
+
+// Attendees 
+app.get('/attendees', (req: Request, res: Response) => {
+    eventController.GetAttendees(req, res);
+});
+
 // Transaction endpoints
 app.get('/events/:uuid/transactions', (req: Request, res: Response) => {
     eventController.GetTransactionsByEvent(req, res);
@@ -67,6 +82,7 @@ app.get('/events/:uuid/transactions', (req: Request, res: Response) => {
 app.post('/transactions', (req: Request, res: Response) => {
     transactionsController.CreateTransaction(req, res);
 });
+
 
 app.get('/transactions/:transactionUuid', (req: Request, res: Response) => {
     transactionsController.GetTransactionByUuid(req, res);
@@ -114,6 +130,7 @@ app.get('/users/:userId/points/sum', (req: Request, res: Response) => {
 app.get('/users/:userId/coupons', (req: Request, res: Response) => {
     usersController.GetUserCoupons(req, res);
 });
+
 
 // Migration endpoints
 app.post('/migration_up', async (req: Request, res: Response) => {

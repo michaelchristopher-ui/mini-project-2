@@ -11,7 +11,7 @@ export type EventObject = {
   category_id: number | null;
   status: string; // 'atv' | 'del'
   created_at: Date;
-  updated_at: Date;
+  created_by : number;
 };
 
 export type CreateEventRequest = {
@@ -23,6 +23,7 @@ export type CreateEventRequest = {
   ticket_type_id?: string;
   event_type?: string;
   category_id?: number;
+  created_by: number;
 };
 
 export type TicketObject = {
@@ -165,4 +166,26 @@ export type CreateCouponRequest = {
 
 export type UpdateCouponRequest = {
   discount_amount?: number;
+};
+
+export type CreateReviewRequest = {
+  event_id: number;
+  created_by: number;
+  rating: number;
+  comment?: string;
+};
+
+export type GetReviewRequest = {
+  created_by?: number;
+  event_id?: number;
+};
+
+export type ReviewObject = {
+  id: number;
+  event_id: number;
+  created_by: number;
+  rating: number;
+  comment: string | null;
+  created_at: Date;
+  updated_at: Date;
 };

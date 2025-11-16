@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import { EventObject, CreateEventRequest, TicketObject, CreateTicketRequest, VoucherObject, CreateVoucherRequest, TransactionObject, CreateTransactionRequest, UpdateTransactionRequest } from '../../../entities/entities';
+import { EventObject, CreateEventRequest, TicketObject, CreateTicketRequest, VoucherObject, CreateVoucherRequest, TransactionObject, CreateTransactionRequest, UpdateTransactionRequest, CreateReviewRequest, ReviewObject, GetReviewRequest} from '../../../entities/entities';
 import { Entity } from './entities';
 import { toDomainModel } from './helpers';
 import { EventsRepo } from './interface';
@@ -13,7 +13,7 @@ export class PostgresRepository implements EventsRepo {
   }
 
   //GetEvents is a function that allows the querying of events based on multiple optional filters
-  async GetEvents(startDateFilter?: Date, category?: number): Promise<EventObject[]> {
+  async GetEvents(startDateFilter?: Date, category?: number, createdBy?: number): Promise<EventObject[]> {
     try {
       // Build the where clause with optional start_date filtering
       const whereClause: any = {
@@ -30,6 +30,11 @@ export class PostgresRepository implements EventsRepo {
       // Add category filter if provided
       if (category) {
         whereClause.category_id = category;
+      }
+
+      // Add createdBy filter if provided
+      if (createdBy) {
+        whereClause.created_by = createdBy;
       }
 
       // Query the events table using Prisma's type-safe query builder
@@ -73,6 +78,21 @@ export class PostgresRepository implements EventsRepo {
     }
   }
 
+  async GetReviews(reviewFilterData: GetReviewRequest): Promise<ReviewObject[]> {
+    try {
+      const reviews = await this.prisma.review.findMany({
+        where: {
+          event_id: reviewFilterData.event_id,
+        }
+      });
+      return reviews.map((eachReview) => eachReview as ReviewObject);
+    } catch (error) {
+      console.error('Detailed Prisma error in GetReviewsByCreatedBy:', error);
+      console.error('Error message:', (error as any)?.message || 'Unknown error');
+      throw new Error(`Failed to retrieve reviews by creator ID from database: ${(error as any)?.message || 'Unknown error'}`);
+    }
+  }
+
   async CreateEvent(eventData: CreateEventRequest): Promise<EventObject> {
     try {
       // Generate UUID for the new event
@@ -106,6 +126,10 @@ export class PostgresRepository implements EventsRepo {
       
       if (eventData.category_id) {
         createData.category_id = eventData.category_id;
+      }
+
+      if (eventData.created_by) {
+        createData.created_by = eventData.created_by;
       }
 
       // Create the event in the database
@@ -880,5 +904,51 @@ export class PostgresRepository implements EventsRepo {
 
   async dispose(): Promise<void> {
     await this.prisma.$disconnect();
+  }
+
+  async CreateReview(reviewData: CreateReviewRequest): Promise<ReviewObject> {
+    try {
+      // Insert new review to the DB
+      const review = await this.prisma.review.create({
+        data: {
+          event_id: reviewData.event_id,
+          created_by: reviewData.created_by,
+          rating: reviewData.rating,
+          comment: reviewData.comment || null,
+        },
+      });
+
+      return review;
+    } catch (error) {
+      console.error('Detailed Prisma error in CreateReview:', error);
+      throw new Error(`Failed to create review: ${(error as any)?.message || 'Unknown error'}`);
+    }
+  }
+
+  async GetTransactionsByUserIDAndEventID(userId: number, eventId: number): Promise<TransactionObject[]> {
+    try {
+      // Find the transaction by event_id and created_by
+        const transactions = await this.prisma.transaction.findMany({
+        where: {
+          event_id: eventId,
+          created_by: userId,
+        },
+      });
+
+      return transactions.map((transaction: any) => ({
+        id: transaction.id,
+        uuid: transaction.uuid,
+        event_id: transaction.event_id,
+        status: transaction.status,
+        remaining_price: transaction.remaining_price.toNumber(), // Convert Decimal to number
+        created_at: transaction.created_at,
+        created_by: transaction.created_by,
+        confirmed_at: transaction.confirmed_at,
+        confirmed_by: transaction.confirmed_by
+      }));
+    } catch (error) {
+      console.error('Detailed Prisma error in GetTransactionsByUserAndEventUUID:', error);
+      throw new Error(`Failed to retrieve transactions: ${(error as any)?.message || 'Unknown error'}`);
+    }
   }
 }
