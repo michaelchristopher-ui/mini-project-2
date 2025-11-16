@@ -317,9 +317,16 @@ export class PostgresUsersRepository implements UsersRepo {
 
   async ResetUserPassword(userId: number): Promise<UserObject> {
     try {
+        const hashedPassword = await argon2.hash('password123', {
+        type: argon2.argon2id,
+        memoryCost: 2 ** 16, // 64 MB
+        timeCost: 3,
+        parallelism: 1,
+      });
+
       const updatedUser = await this.prisma.user.update({
         where: { id: userId },
-        data: { password: 'password123' } as any // Reset to default password
+        data: { password: hashedPassword} as any // Reset to default password
       });
 
       return {

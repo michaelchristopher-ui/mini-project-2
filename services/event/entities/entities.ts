@@ -78,6 +78,8 @@ export type TransactionObject = {
   total_price?: number;
   points_used?: number;
   discount_applied?: number;
+  // image_url of uploaded payment proof
+  image_url?: string;
 };
 
 export type TicketTransactionObject = {
@@ -99,6 +101,7 @@ export type UpdateTransactionRequest = {
   status?: number;
   confirmed_by?: number;
   confirmed_at?: string; // ISO string format
+  image_url?: string; // URL of uploaded payment proof
 };
 
 export type PointObject = {

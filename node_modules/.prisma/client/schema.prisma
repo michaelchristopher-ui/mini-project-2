@@ -94,6 +94,7 @@ model Transaction {
   confirmer           User?               @relation("TransactionConfirmer", fields: [confirmed_by], references: [id], onUpdate: NoAction, map: "fk_transactions_confirmed_by")
   creator             User?               @relation("TransactionCreator", fields: [created_by], references: [id], onUpdate: NoAction, map: "fk_transactions_created_by")
   event               Event               @relation(fields: [event_id], references: [id], onUpdate: NoAction)
+  image_url           String?             @db.VarChar(255)
 
   @@map("transactions")
   @@schema("event")

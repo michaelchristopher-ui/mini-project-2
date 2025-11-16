@@ -689,6 +689,10 @@ export class PostgresRepository implements EventsRepo {
       if (updateData.confirmed_at !== undefined) {
         updatePayload.confirmed_at = new Date(updateData.confirmed_at);
       }
+      
+      if (updateData.image_url !== undefined) {
+        updatePayload.image_url = updateData.image_url;
+      }
 
       // Use transaction to ensure atomicity when restoring seats
       const result = await this.prisma.$transaction(async (prisma) => {
@@ -726,7 +730,8 @@ export class PostgresRepository implements EventsRepo {
         created_at: result.created_at,
         created_by: result.created_by,
         confirmed_at: result.confirmed_at,
-        confirmed_by: result.confirmed_by
+        confirmed_by: result.confirmed_by,
+        image_url: result.image_url || undefined
       };
     } catch (error) {
       console.error('Detailed Prisma error in UpdateTransaction:', error);

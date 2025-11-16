@@ -72,6 +72,10 @@ app.get('/transactions/:transactionUuid', (req: Request, res: Response) => {
     transactionsController.GetTransactionByUuid(req, res);
 });
 
+app.patch('/transactions/:transactionUuid/upload_image', (req: Request, res: Response) => {
+    transactionsController.UpdateTransactionUploadImage(req, res);
+});
+
 app.patch('/transactions/:transactionUuid/status', (req: Request, res: Response) => {
     transactionsController.UpdateTransactionStatus(req, res);
 });
@@ -85,7 +89,6 @@ app.post('/users', (req: Request, res: Response) => {
     usersController.CreateUser(req, res);
 });
 
-// Get user by ID
 app.get('/users/:id', (req: Request, res: Response) => {
     usersController.GetUserById(req, res);
 });
@@ -98,17 +101,18 @@ app.post('/users/:userId/reset-password', (req: Request, res: Response) => {
     usersController.ResetPassword(req, res);
 });
 
+
+// User points endpoint
 app.get('/users/:userId/points', (req: Request, res: Response) => {
     usersController.GetUserPoints(req, res);
 });
 
-app.get('/users/:userId/coupons', (req: Request, res: Response) => {
-    usersController.GetUserCoupons(req, res);
-});
-
-// Points sum endpoint (separate from detailed points list)
 app.get('/users/:userId/points/sum', (req: Request, res: Response) => {
     usersController.GetUserPointsSum(req, res);
+});
+
+app.get('/users/:userId/coupons', (req: Request, res: Response) => {
+    usersController.GetUserCoupons(req, res);
 });
 
 // Migration endpoints

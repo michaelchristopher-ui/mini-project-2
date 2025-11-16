@@ -1,0 +1,202 @@
+{
+  "info": {
+    "_postman_id": "b6c9c8b5-3c8e-4c6b-9c51-example-id",
+    "name": "Event Website API",
+    "description": "Postman collection for Event Website API endpoints (Users, Events, Transactions, Migrations, Seeds). Includes password update flow requiring old_password, and sample environment variable usage.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Root Hello World",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/", "host": ["{{baseUrl}}"], "path": [""] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {"exec": ["pm.test('Status is 200', () => pm.response.code === 200);"]}
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "description": "User management: create, get, update (with old_password verification), points, coupons.",
+      "item": [
+        {
+          "name": "Create User",
+          "request": {
+            "method": "POST",
+            "header": [{"key":"Content-Type","value":"application/json"}],
+            "body": {"mode":"raw","raw":"{\n  \"username\": \"user_{{timestamp}}\",\n  \"password\": \"Testpass123\",\n  \"role\": 1\n}"},
+            "url": {"raw": "{{baseUrl}}/users","host":["{{baseUrl}}"],"path":["users"]}
+          },
+          "event": [{"listen":"prerequest","script":{"exec":["pm.variables.set('timestamp', Date.now());"]}},{"listen":"test","script":{"exec":["pm.test('Created',()=>pm.response.code===201);","const json=pm.response.json();","pm.test('No password field exposed',()=>!json.data.password);"]}}]
+        },
+        {
+          "name": "Get User By ID",
+          "request": {"method":"GET","url":{"raw":"{{baseUrl}}/users/{{userId}}","host":["{{baseUrl}}"],"path":["users","{{userId}}"]}},
+          "event":[{"listen":"test","script":{"exec":["pm.test('OK',()=>pm.response.code===200);"]}}]
+        },
+        {
+          "name": "Update User (Username)",
+          "request": {
+            "method": "PATCH",
+            "header": [{"key":"Content-Type","value":"application/json"}],
+            "body": {"mode":"raw","raw":"{\n  \"username\": \"updated_{{timestamp}}\"\n}"},
+            "url": {"raw":"{{baseUrl}}/users/{{userId}}","host":["{{baseUrl}}"],"path":["users","{{userId}}"]}
+          },
+          "event":[{"listen":"test","script":{"exec":["pm.test('Updated',()=>pm.response.code===200);"]}}]
+        },
+        {
+          "name": "Update Password (Requires old_password)",
+            "request": {
+              "method": "PATCH",
+              "header": [{"key":"Content-Type","value":"application/json"}],
+              "body": {"mode":"raw","raw":"{\n  \"password\": \"Newpass4567\",\n  \"old_password\": \"Testpass123\"\n}"},
+              "url": {"raw":"{{baseUrl}}/users/{{userId}}","host":["{{baseUrl}}"],"path":["users","{{userId}}"]}
+            },
+            "event":[{"listen":"test","script":{"exec":["pm.test('Password updated',()=>pm.response.code===200);"]}}]
+        },
+        {
+          "name": "Get User Points List",
+          "request": {"method":"GET","url":{"raw":"{{baseUrl}}/users/{{userId}}/points","host":["{{baseUrl}}"],"path":["users","{{userId}}","points"]}},
+          "event":[{"listen":"test","script":{"exec":["pm.test('OK',()=>pm.response.code===200);"]}}]
+        },
+        {
+          "name": "Get User Points Sum",
+          "request": {"method":"GET","url":{"raw":"{{baseUrl}}/users/{{userId}}/points/sum","host":["{{baseUrl}}"],"path":["users","{{userId}}","points","sum"]}},
+          "event":[{"listen":"test","script":{"exec":["pm.test('OK',()=>pm.response.code===200);"]}}]
+        },
+        {
+          "name": "Get User Coupons",
+          "request": {"method":"GET","url":{"raw":"{{baseUrl}}/users/{{userId}}/coupons","host":["{{baseUrl}}"],"path":["users","{{userId}}","coupons"]}},
+          "event":[{"listen":"test","script":{"exec":["pm.test('OK',()=>pm.response.code===200);"]}}]
+        }
+      ]
+    },
+    {
+      "name": "Events",
+      "item": [
+        {
+          "name": "List Events",
+          "request": {"method":"GET","url":{"raw":"{{baseUrl}}/events/list","host":["{{baseUrl}}"],"path":["events","list"]}},
+          "event":[{"listen":"test","script":{"exec":["pm.test('OK',()=>pm.response.code===200);"]}}]
+        },
+        {
+          "name": "Get Event By UUID",
+          "request": {"method":"GET","url":{"raw":"{{baseUrl}}/events/{{eventUuid}}","host":["{{baseUrl}}"],"path":["events","{{eventUuid}}"]}},
+          "event":[{"listen":"test","script":{"exec":["pm.test('Could be 200 or 404',()=>[200,404].includes(pm.response.code));"]}}]
+        },
+        {
+          "name": "Create Event",
+          "request": {
+            "method":"POST",
+            "header":[{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"name\": \"Sample Event\",\n  \"start_date\": \"2025-12-01T10:00:00.000Z\",\n  \"end_date\": \"2025-12-01T12:00:00.000Z\",\n  \"available_seats\": 100,\n  \"description\": \"Demo event\"\n}"},
+            "url":{"raw":"{{baseUrl}}/events","host":["{{baseUrl}}"],"path":["events"]}
+          },
+          "event":[{"listen":"test","script":{"exec":["pm.test('Created',()=>pm.response.code===201);","const json=pm.response.json(); if(json.data){pm.collectionVariables.set('eventUuid', json.data.uuid);} "]}}]
+        },
+        {
+          "name": "Create Ticket for Event",
+          "request": {
+            "method":"POST",
+            "header":[{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"price\": 49.99\n}"},
+            "url":{"raw":"{{baseUrl}}/events/{{eventUuid}}/tickets","host":["{{baseUrl}}"],"path":["events","{{eventUuid}}","tickets"]}
+          },
+          "event":[{"listen":"test","script":{"exec":["pm.test('Created',()=>pm.response.code===201);"]}}]
+        },
+        {
+          "name": "List Event Vouchers",
+          "request": {"method":"GET","url":{"raw":"{{baseUrl}}/events/{{eventUuid}}/vouchers","host":["{{baseUrl}}"],"path":["events","{{eventUuid}}","vouchers"]}},
+          "event":[{"listen":"test","script":{"exec":["pm.test('OK or Empty',()=>[200,404].includes(pm.response.code));"]}}]
+        },
+        {
+          "name": "Create Event Voucher",
+          "request": {
+            "method":"POST",
+            "header":[{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"start_date\": \"2025-12-01T10:00:00.000Z\",\n  \"end_date\": \"2025-12-10T10:00:00.000Z\",\n  \"code\": \"PROMO100\",\n  \"discount_type\": \"flat\",\n  \"discount_amount\": 100\n}"},
+            "url":{"raw":"{{baseUrl}}/events/{{eventUuid}}/vouchers","host":["{{baseUrl}}"],"path":["events","{{eventUuid}}","vouchers"]}
+          },
+          "event":[{"listen":"test","script":{"exec":["pm.test('Created',()=>pm.response.code===201);"]}}]
+        }
+      ]
+    },
+    {
+      "name": "Transactions",
+      "item": [
+        {
+          "name": "Create Transaction",
+          "request": {
+            "method":"POST",
+            "header":[{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"event_uuid\": \"{{eventUuid}}\",\n  \"tickets\": [{ \"ticket_id\": 1, \"quantity\": 2 }]\n}"},
+            "url":{"raw":"{{baseUrl}}/transactions","host":["{{baseUrl}}"],"path":["transactions"]}
+          },
+          "event":[{"listen":"test","script":{"exec":["pm.test('Created or error',()=>[201,400,404].includes(pm.response.code));","if(pm.response.code===201){const j=pm.response.json();pm.collectionVariables.set('transactionUuid', j.data.uuid);} "]}}]
+        },
+        {
+          "name": "Get Transaction By UUID",
+          "request": {"method":"GET","url":{"raw":"{{baseUrl}}/transactions/{{transactionUuid}}","host":["{{baseUrl}}"],"path":["transactions","{{transactionUuid}}"]}},
+          "event":[{"listen":"test","script":{"exec":["pm.test('OK or Not Found',()=>[200,404].includes(pm.response.code));"]}}]
+        },
+        {
+          "name": "Update Transaction Status",
+          "request": {
+            "method":"PATCH",
+            "header":[{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"status\": 2\n}"},
+            "url":{"raw":"{{baseUrl}}/transactions/{{transactionUuid}}/status","host":["{{baseUrl}}"],"path":["transactions","{{transactionUuid}}","status"]}
+          },
+          "event":[{"listen":"test","script":{"exec":["pm.test('Updated or Error',()=>[200,400,404].includes(pm.response.code));"]}}]
+        },
+        {
+          "name": "Get Tickets For Transaction",
+          "request": {"method":"GET","url":{"raw":"{{baseUrl}}/transactions/{{transactionUuid}}/tickets","host":["{{baseUrl}}"],"path":["transactions","{{transactionUuid}}","tickets"]}},
+          "event":[{"listen":"test","script":{"exec":["pm.test('OK or Not Found',()=>[200,404].includes(pm.response.code));"]}}]
+        }
+      ]
+    },
+    {
+      "name": "Migrations",
+      "item": [
+        {
+          "name": "Run Migrations Up",
+          "request": {"method":"POST","url":{"raw":"{{baseUrl}}/migration_up","host":["{{baseUrl}}"],"path":["migration_up"]}},
+          "event":[{"listen":"test","script":{"exec":["pm.test('Either success or failure payload',()=>[200,500].includes(pm.response.code));"]}}]
+        },
+        {
+          "name": "Run Migrations Down",
+          "request": {"method":"POST","url":{"raw":"{{baseUrl}}/migration_down","host":["{{baseUrl}}"],"path":["migration_down"]}},
+          "event":[{"listen":"test","script":{"exec":["pm.test('Either success or failure payload',()=>[200,500].includes(pm.response.code));"]}}]
+        }
+      ]
+    },
+    {
+      "name": "Seeds",
+      "item": [
+        {
+          "name": "Run Seeds Up",
+          "request": {"method":"POST","url":{"raw":"{{baseUrl}}/seed_up","host":["{{baseUrl}}"],"path":["seed_up"]}},
+          "event":[{"listen":"test","script":{"exec":["pm.test('Multi-status possible',()=>[200,207,500].includes(pm.response.code));"]}}]
+        },
+        {
+          "name": "Run Seeds Down",
+          "request": {"method":"POST","url":{"raw":"{{baseUrl}}/seed_down","host":["{{baseUrl}}"],"path":["seed_down"]}},
+          "event":[{"listen":"test","script":{"exec":["pm.test('Multi-status possible',()=>[200,207,500].includes(pm.response.code));"]}}]
+        }
+      ]
+    }
+  ]
+}

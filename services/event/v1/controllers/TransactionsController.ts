@@ -260,6 +260,89 @@ export class TransactionsController {
     }
   }
 
+  async UpdateTransactionUploadImage(req: Request, res: Response): Promise<void> {
+    try {
+      const { transactionUuid } = req.params;
+      const { image_url } = req.body;
+      // Validate UUID format
+      if (!transactionUuid || typeof transactionUuid !== 'string') {
+        res.status(400).json({ 
+          success: false,
+          data: null,
+          message: 'Transaction UUID is required' 
+        });
+        return;
+      }
+      // Validate UUID format using regex
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(transactionUuid)) {
+        res.status(400).json({
+          success: false,
+          data: null,
+          message: 'Invalid UUID format'
+        });
+        return;
+      }
+      if (!image_url || typeof image_url !== 'string') {
+        res.status(400).json({ 
+          success: false,
+          data: null,
+          message: 'image_url is required and must be a string' 
+        });
+        return;
+      }
+      // Fetch current transaction for validation 
+      let currentTransaction: any;
+      try {
+        currentTransaction = await this.eventsRepo.GetTransactionByUuid(transactionUuid);
+        if (!currentTransaction) {
+          res.status(404).json({
+            success: false,
+            data: null,
+            message: 'Transaction not found'
+          });
+          return;
+        }
+      } catch (error) {
+        console.error('Error fetching transaction:', error);
+        res.status(500).json({
+          success: false,
+          data: null,
+          message: 'Internal server error while fetching transaction'
+        });
+        return;
+      }
+
+      // Check if the transaction status allows image upload
+      const currentStatus = currentTransaction.status;
+      if (currentStatus !== 1 && currentStatus !== 2) {
+        res.status(400).json({
+          success: false,
+          data: null,
+          message: 'Can only upload image for transactions that are waiting for payment (1) or waiting for confirmation (2)'
+        });
+        return;
+      }
+
+      // Proceed with updating the transaction upload image
+      const updatedTransaction = await this.eventsRepo.UpdateTransaction(transactionUuid, { image_url });
+      res.status(200).json({
+        success: true,
+        data: updatedTransaction,
+        message: 'Transaction upload image updated successfully'
+      });
+      
+    } catch (error) {
+      console.error('Error in UpdateTransactionUploadImage:', error);
+      res.status(500).json({
+        success: false,
+        data: null,
+        message: 'Failed to update transaction upload image'
+      });
+    }
+  }
+  
+
   async UpdateTransactionStatus(req: Request, res: Response): Promise<void> {
     try {
       const { transactionUuid } = req.params;
